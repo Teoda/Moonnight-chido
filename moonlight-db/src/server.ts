@@ -1,8 +1,8 @@
 import express from 'express'
+import { existsSync } from 'node:fs'
 import helmet from 'helmet'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
-import path from 'node:path'
 import { ZodError } from 'zod'
 import { config } from './config'
 import { prisma } from './db'
@@ -38,7 +38,7 @@ app.use('/api/publico', publico)
 app.use('/api/cliente', cliente)
 app.use('/api/staff', staff)
 app.use('/api', (_req, res) => void res.status(404).json({ error: 'No encontrado' }))
-app.use(express.static(path.join(__dirname, '..', 'public'))) // aquí va el frontend (mismo origen = sin CORS)
+app.use(express.static(config.frontendDir)) // el frontend (carpeta hermana moonlight-front) se sirve en el mismo origen = sin CORS
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof ZodError) return void res.status(400).json({ error: 'Datos inválidos', detalles: err.issues.map((i) => ({ campo: i.path.join('.'), mensaje: i.message })) })
@@ -53,4 +53,5 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 })
 
 setInterval(() => mantenimiento().catch(console.error), 60_000).unref()
+if (!existsSync(config.frontendDir)) console.warn(`[aviso] No se encontró el frontend en ${config.frontendDir} (define FRONTEND_DIR)`)
 app.listen(config.port, () => console.log(`Moonlight API en http://localhost:${config.port} (${config.isProd ? 'producción' : 'desarrollo'})`))

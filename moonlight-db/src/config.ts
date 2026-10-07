@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
+import path from 'node:path'
 
 const e = process.env
 const isProd = e.NODE_ENV === 'production'
@@ -23,4 +24,5 @@ export const config = {
   staff: { idleMs: 30 * 60_000, absoluteMs: 8 * 3600_000 },          // personal: 30 min de inactividad / 8 h máx.
   cliente: { idleMs: 2 * 3600_000, absoluteMs: 7 * 24 * 3600_000 }, // clientes: 2 h de inactividad / 7 días máx.
   pagosSimulados: e.PAGOS_SIMULADOS ? e.PAGOS_SIMULADOS === 'true' : !isProd,
+  frontendDir: path.resolve(__dirname, '..', e.FRONTEND_DIR || '../moonlight-front'), // relativo a la raíz del back
 }

@@ -9,9 +9,9 @@ services:
       MYSQL_USER: moonlight
       MYSQL_PASSWORD: moonlight_pass
       TZ: America/Mexico_City
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --mysql-native-password=ON --authentication-policy=mysql_native_password
     ports:
-      - "3307:3306"   # 3307 para no chocar con el MySQL instalado en tu PC (3306)
+      - "3309:3306"   # 3309 para no chocar con el MySQL instalado en tu PC (3306)
     volumes:
       - moonlight_data:/var/lib/mysql
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro

@@ -205,7 +205,7 @@ r.get('/pedidos/por-cobrar', RECEP, ah(async (_req, res) => {
   const ps = await prisma.pedido.findMany({
     where: { origen: 'PREORDEN', estado: 'EN_ESPERA', reservacion: { estado: { in: ['CONFIRMADA', 'EN_CURSO'] } } }, orderBy: { creadoEn: 'asc' }, take: 100,
     include: { items: { include: { producto: { select: { nombre: true } } } }, reservacion: { select: { codigo: true, estado: true, sala: { select: { numero: true } } } } },
-  }))
+  })
   res.json(ps.map((p) => ({ ...p, restante: p.total.sub(p.anticipo) })))
 }))
 
