@@ -1,0 +1,19 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: moonlight-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_dev_pass
+      MYSQL_DATABASE: moonlight
+      MYSQL_USER: moonlight
+      MYSQL_PASSWORD: moonlight_pass
+      TZ: America/Mexico_City
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"   # 3307 para no chocar con el MySQL instalado en tu PC (3306)
+    volumes:
+      - moonlight_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+volumes:
+  moonlight_data:
