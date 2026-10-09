@@ -7,7 +7,9 @@ const st = {
   salas: null,
   cliente: null,
   slot: null,          // ISO del inicio elegido
-  busqueda: null,      // { fecha, personas, duracionMin, tematicaId }
+  busqueda: null,      // { fecha, personas, duracionMin, tipoSalaId }
+  tipoSalaId: null,    // tamaño de sala elegido
+  genero: null,        // id del género musical, o 'lista' = "mi propia lista"
   menuSel: null,       // selector del pedido anticipado
   pendiente: null,     // acción a continuar tras iniciar sesión
   totalPrev: 0,        // para animar el total del resumen desde su valor anterior
@@ -32,9 +34,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-atras').addEventListener('click', () => { $('#paso-1').scrollIntoView({ behavior: 'smooth' }) })
   $('#btn-recargar').addEventListener('click', () => cargarMisReservaciones())
   $('#filtro-tipo').addEventListener('change', pintarSalas)
-  $('#filtro-tema').addEventListener('change', pintarSalas)
-  for (const id of ['#f-fecha', '#f-personas', '#f-duracion', '#f-tema'])
+  for (const id of ['#f-fecha', '#f-duracion'])
     $(id).addEventListener('change', () => { if (st.busqueda) buscarHorarios() })
+  $('#f-personas').addEventListener('change', () => { ajustarTipoAPersonas(); if (st.busqueda) buscarHorarios() })
+  $('#btn-mas-artista').addEventListener('click', () => agregarArtista(true))
+  $('#f-canciones').addEventListener('input', pintarResumen)
 
   await Promise.all([cargarCatalogo(), cargarSesion()])
   router()
@@ -72,10 +76,8 @@ async function cargarCatalogo() {
   // Formulario de reserva
   const dur = clear($('#f-duracion'))
   for (let m = 60; m <= 240; m += reglas.pasoMin) dur.append(h('option', { value: m, selected: m === 120 }, durTxt(m)))
-  for (const t of tematicas) {
-    $('#f-tema').append(h('option', { value: t.id }, t.nombre))
-    $('#filtro-tema').append(h('option', { value: t.nombre }, t.nombre))
-  }
+  pintarTamanos()
+  pintarGeneros()
   for (const t of tipos) $('#filtro-tipo').append(h('option', { value: t.nombre }, `${t.nombre} (${t.capacidadMin}–${t.capacidadMax} personas)`))
   const fecha = $('#f-fecha')
   fecha.min = hoyLocal()
@@ -156,18 +158,18 @@ async function cargarSalas() {
 
 function pintarSalas() {
   if (!st.salas) return
-  const tipo = $('#filtro-tipo').value, tema = $('#filtro-tema').value
-  const lista = st.salas.filter((s) => (!tipo || s.tipo === tipo) && (!tema || s.tematica === tema))
+  const tipo = $('#filtro-tipo').value
+  const lista = st.salas.filter((s) => !tipo || s.tipo === tipo)
   const box = clear($('#lista-salas'))
   if (!lista.length) return box.append(h('div.empty', 'No hay salas con esos filtros.'))
   for (const s of lista) {
     box.append(h('article.card.sala.tilt',
       s.fotoUrl
         ? h('div.thumb.foto', h('img', { src: s.fotoUrl, alt: `Sala ${s.numero}, ${s.tipo}`, loading: 'lazy' }), h('span', `#${s.numero}`))
-        : h('div.thumb', { class: `t-${slug(s.tematica)}` }, `#${s.numero}`),
-      h('div.row.between', h('h3', { style: 'margin:0' }, s.tematica), h('span.badge.accent', s.tipo)),
-      h('p.muted.small', s.descripcion || `Sala ${s.tipo.toLowerCase()} con temática ${s.tematica}.`),
-      conCortesia(st.catalogo?.tipos.find((t) => t.nombre === s.tipo)?.id) ? h('p.cortesia-tag', '🍾 Incluye botella de cortesía') : null,
+        : h('div.thumb.t-default', `#${s.numero}`),
+      h('div.row.between', h('h3', { style: 'margin:0' }, `Sala ${s.numero}`), h('span.badge.accent', s.tipo)),
+      h('p.muted.small', s.descripcion || 'Se ambienta con el género musical que elijas al reservar.'),
+      conCortesia(s.tipoSalaId) ? h('p.cortesia-tag', '🍾 Incluye botella de cortesía') : null,
       h('div.row.between',
         h('div', h('div.price', money(s.precioHora), h('small', ' /hora')), h('div.muted.small', `${s.capacidad} personas`)),
         s.disponibleParaReservar
@@ -178,12 +180,102 @@ function pintarSalas() {
 }
 
 function reservarSala(s) {
-  const t = st.catalogo.tematicas.find((x) => x.nombre === s.tematica)
-  const [min] = s.capacidad.split('-').map(Number)
-  $('#f-tema').value = t ? t.id : ''
-  if (Number($('#f-personas').value) < min) $('#f-personas').value = min
+  elegirTipo(s.tipoSalaId)
   location.hash = '#reservar'
   buscarHorarios()
+}
+
+// ───────────── tamaño de sala y música ─────────────
+/** Tarjetas para elegir el tamaño de la sala. */
+function pintarTamanos() {
+  const { tipos } = st.catalogo
+  append(clear($('#f-tipos')), tipos.map((t) => h('button.tamano', {
+    type: 'button', role: 'radio', 'aria-checked': 'false', dataset: { id: t.id },
+    onclick: () => { elegirTipo(t.id); if (st.busqueda) buscarHorarios() },
+  },
+  h('img', { src: FOTOS_TIPO[t.codigo] || '', alt: '', loading: 'lazy' }),
+  h('span.tamano-info',
+    h('b', `Sala ${t.nombre}`),
+    h('span.muted.small', `Hasta ${t.capacidadMax} personas`),
+    h('span.small', { style: 'color:var(--gold)' }, `${money(t.precioHora)} /h`),
+    conCortesia(t.id) ? h('span.small.cortesia-tag', '🍾 Botella de cortesía') : null))))
+  elegirTipo(tipoPara(Number($('#f-personas').value))?.id ?? tipos[0]?.id)
+}
+
+function elegirTipo(id) {
+  st.tipoSalaId = id
+  $$('#f-tipos .tamano').forEach((b) => {
+    const on = Number(b.dataset.id) === id
+    b.classList.toggle('on', on)
+    b.setAttribute('aria-checked', String(on))
+  })
+  const t = st.catalogo.tipos.find((x) => x.id === id)
+  if (t && Number($('#f-personas').value) > t.capacidadMax) $('#f-personas').value = t.capacidadMax
+  if (t) $('#f-personas').max = t.capacidadMax
+  st.menuSel?.recomendar(id)
+  pintarCortesia()
+  pintarResumen()
+}
+
+/** Si escriben más personas de las que caben, se pasa al siguiente tamaño. */
+function ajustarTipoAPersonas() {
+  const n = Number($('#f-personas').value)
+  const actual = st.catalogo.tipos.find((t) => t.id === st.tipoSalaId)
+  if (actual && n <= actual.capacidadMax) return pintarResumen()
+  const t = tipoPara(n)
+  if (t) { elegirTipo(t.id); toast(`Para ${n} personas te sugerimos la Sala ${t.nombre}`) }
+}
+
+/** Chips de géneros musicales + "Mi propia lista". */
+function pintarGeneros() {
+  const opciones = [...st.catalogo.tematicas.map((t) => ({ id: t.id, nombre: t.nombre })), { id: 'lista', nombre: '✍️ Mi propia lista' }]
+  append(clear($('#f-generos')), opciones.map((o) => h('button.chip', {
+    type: 'button', role: 'radio', 'aria-checked': 'false', dataset: { id: o.id },
+    onclick: () => elegirGenero(o.id),
+  }, o.nombre)))
+  const box = clear($('#f-artistas'))
+  for (let i = 0; i < 3; i++) agregarArtista(false)
+  box.addEventListener('input', pintarResumen)
+}
+
+function elegirGenero(id) {
+  st.genero = id
+  $$('#f-generos .chip').forEach((c) => {
+    const on = c.dataset.id === String(id)
+    c.classList.toggle('selected', on)
+    c.setAttribute('aria-checked', String(on))
+  })
+  const lista = id === 'lista'
+  $('#req-artistas').textContent = lista ? '(mínimo 3)' : '(opcional; si los escribes, mínimo 3)'
+  $$('#f-artistas input').slice(0, 3).forEach((i) => (i.required = lista))
+  if (lista) $('#f-artistas input').focus()
+  mostrarPasos()
+}
+
+function agregarArtista(enfocar) {
+  const box = $('#f-artistas')
+  if (box.children.length >= 10) return toast('Máximo 10 artistas', 'bad')
+  const n = box.children.length + 1
+  const input = h('input', { type: 'text', maxLength: 80, placeholder: `Artista ${n}`, 'aria-label': `Artista ${n}`, autocomplete: 'off' })
+  box.append(input)
+  if (enfocar) input.focus()
+}
+
+/** Lo que el cliente eligió de música, listo para enviar a la API (o un mensaje de error). */
+function musicaElegida() {
+  const artistas = [...new Set($$('#f-artistas input').map((i) => i.value.trim()).filter(Boolean))]
+  const canciones = $('#f-canciones').value.split('\n').map((c) => c.trim()).filter(Boolean).slice(0, 20)
+  if (!st.genero) return { error: 'Elige un género musical o "Mi propia lista"' }
+  if (st.genero === 'lista' && artistas.length < 3) return { error: 'Escribe al menos 3 artistas para tu lista' }
+  if (artistas.length && artistas.length < 3) return { error: 'Si escribes artistas, que sean al menos 3' }
+  return {
+    datos: {
+      ...(st.genero !== 'lista' ? { tematicaId: st.genero } : {}),
+      ...(artistas.length ? { artistas } : {}),
+      ...(canciones.length ? { canciones } : {}),
+    },
+    artistas, canciones,
+  }
 }
 
 // Fotos por tipo de sala (las salas también traen la suya en fotoUrl)
@@ -252,27 +344,29 @@ function tipoPara(personas) {
   return st.catalogo?.tipos.find((t) => t.capacidadMin <= personas && personas <= t.capacidadMax)
 }
 
+const tipoElegido = () => st.catalogo?.tipos.find((t) => t.id === st.tipoSalaId)
+
 async function buscarHorarios() {
   const fecha = $('#f-fecha').value
   const personas = Number($('#f-personas').value)
   const duracionMin = Number($('#f-duracion').value)
-  const tematicaId = $('#f-tema').value
+  const tipo = tipoElegido()
+  if (!tipo) return toast('Elige el tamaño de la sala', 'bad')
   if (!fecha || !personas) return toast('Elige fecha y número de personas', 'bad')
-  st.busqueda = { fecha, personas, duracionMin, tematicaId: tematicaId ? Number(tematicaId) : undefined }
+  if (personas > tipo.capacidadMax) return toast(`La Sala ${tipo.nombre} es para máximo ${tipo.capacidadMax} personas`, 'bad')
+  st.busqueda = { fecha, personas, duracionMin, tipoSalaId: tipo.id }
   st.slot = null
-  st.menuSel?.recomendar(tipoPara(personas)?.id)
   pintarCortesia()
   mostrarPasos()
   const box = clear($('#slots'))
   box.append(h('div.empty', h('span.spinner')))
-  const qs = new URLSearchParams({ fecha, personas, duracionMin })
-  if (tematicaId) qs.set('tematicaId', tematicaId)
+  const qs = new URLSearchParams({ fecha, personas, duracionMin, tipoSalaId: tipo.id })
   try {
     const r = await api.get('/api/publico/disponibilidad?' + qs)
     clear(box)
     if (r.cerrado) return box.append(h('div.empty', 'Ese día no abrimos. Prueba con otra fecha.'))
-    if (!r.slots.length) return box.append(h('div.empty', 'No quedan horarios libres para esa combinación. Prueba otra duración, temática o fecha.'))
-    box.append(h('p.muted.small', `Sala ${r.tipo.toLowerCase()} · elige la hora de inicio:`))
+    if (!r.slots.length) return box.append(h('div.empty', 'No quedan horarios libres para esa sala. Prueba otra duración, otro tamaño o fecha.'))
+    box.append(h('p.muted.small', `Sala ${r.tipo} · elige la hora de inicio:`))
     const chips = h('div.chips')
     for (const s of r.slots) {
       chips.append(h('button.chip', {
@@ -282,6 +376,7 @@ async function buscarHorarios() {
           e.currentTarget.classList.add('selected')
           st.slot = s.inicio
           mostrarPasos()
+          if (!st.genero) setTimeout(() => $('#paso-musica').scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
         },
       }, fmtHora(s.inicio), h('small', s.disponibles === 1 ? 'última' : `${s.disponibles} libres`)))
     }
@@ -295,10 +390,10 @@ async function buscarHorarios() {
 const conCortesia = (tipoId) => !!tipoId && st.catalogo?.cortesia?.tipoSalaId === tipoId && st.catalogo.cortesia.botellas.length > 0
 const nombreBotella = (n) => n.replace(' (botella)', '')
 
-/** Elección de la botella de cortesía (solo si el grupo cae en el tipo de sala que la incluye). */
+/** Elección de la botella de cortesía (solo si la sala elegida la incluye). */
 function pintarCortesia() {
   const box = $('#cortesia-box')
-  const tipo = st.busqueda && tipoPara(st.busqueda.personas)
+  const tipo = tipoElegido()
   if (!conCortesia(tipo?.id)) { box.hidden = true; st.cortesia = null; return }
   const { botellas } = st.catalogo.cortesia
   if (!botellas.some((b) => b.id === st.cortesia)) st.cortesia = botellas[0].id
@@ -323,11 +418,12 @@ function pintarCortesia() {
 }
 
 function mostrarPasos() {
-  const listo = !!st.slot
-  $('#paso-2').hidden = !listo
-  $('#paso-3').hidden = !listo
-  $$('#steps .s').forEach((s) => s.classList.toggle('on', Number(s.dataset.step) === 1 || listo))
-  $('#barra-pasos').style.width = listo ? (st.menuSel?.items().length ? '100%' : '72%') : st.busqueda ? '36%' : '8%'
+  const conHora = !!st.slot
+  $('#paso-musica').hidden = !conHora
+  $('#paso-2').hidden = !conHora
+  $('#paso-3').hidden = !conHora
+  const hechos = { 1: true, 2: conHora, 3: conHora && !!st.genero, 4: conHora && !!st.genero }
+  $$('#steps .s').forEach((s) => s.classList.toggle('on', !!hechos[s.dataset.step]))
   pintarResumen()
 }
 
@@ -335,9 +431,8 @@ function pintarResumen() {
   const dl = clear($('#resumen'))
   if (!st.catalogo) return
   const b = st.busqueda
-  if (!b) return dl.append(h('dd.muted', { style: 'grid-column:1/-1;text-align:left' }, 'Elige fecha, personas y duración para ver horarios.'))
-  const tipo = tipoPara(b.personas)
-  const tema = st.catalogo.tematicas.find((t) => t.id === b.tematicaId)
+  if (!b) return dl.append(h('dd.muted', { style: 'grid-column:1/-1;text-align:left' }, 'Elige el tamaño de la sala, la fecha y la duración para ver horarios.'))
+  const tipo = st.catalogo.tipos.find((t) => t.id === b.tipoSalaId)
   const sala = tipo ? Number(tipo.precioHora) * (b.duracionMin / 60) : 0
   const pedido = st.menuSel?.total() || 0
   const anticipo = Math.round(pedido * st.catalogo.reglas.anticipoPedidoPct) / 100
@@ -345,12 +440,17 @@ function pintarResumen() {
   const totalDd = h('dd.total')
   fx.contar(totalDd, sala + anticipo, money, st.totalPrev, 450)
   st.totalPrev = sala + anticipo
-  if (st.slot) $('#barra-pasos').style.width = pedido ? '100%' : '72%'
+  // avance: horario → música → (pedido) → listo
+  $('#barra-pasos').style.width = !st.slot ? '20%' : !st.genero ? '45%' : pedido ? '100%' : '80%'
+  const m = st.genero ? musicaElegida() : null
+  const genero = st.genero === 'lista' ? 'Mi propia lista' : st.catalogo.tematicas.find((t) => t.id === st.genero)?.nombre
   append(dl, [
     fila('Fecha', st.slot ? fmtFecha(st.slot) : b.fecha),
     fila('Horario', st.slot ? `${fmtHora(st.slot)}–${fmtHora(new Date(st.slot).getTime() + b.duracionMin * 6e4)}` : '—'),
     fila('Personas', b.personas),
-    fila('Sala', tipo ? `${tipo.nombre}${tema ? ' · ' + tema.nombre : ''}` : 'Sin sala para ese grupo'),
+    fila('Sala', tipo ? tipo.nombre : '—'),
+    fila('Música', genero ? `🎤 ${genero}` : '—'),
+    m?.artistas?.length ? fila('Artistas', m.artistas.slice(0, 3).join(', ') + (m.artistas.length > 3 ? ` y ${m.artistas.length - 3} más` : ''), 'small') : null,
     fila(`Sala (${durTxt(b.duracionMin)})`, money(sala)),
     st.cortesia ? fila(`🍾 ${nombreBotella(st.catalogo.cortesia.botellas.find((x) => x.id === st.cortesia)?.nombre || '')}`, 'Cortesía') : null,
     pedido ? fila('Pedido anticipado', money(pedido)) : null,
@@ -362,13 +462,18 @@ function pintarResumen() {
 
 async function reservar(btn) {
   if (!st.slot || !st.busqueda) return toast('Elige un horario', 'bad')
+  const musica = musicaElegida()
+  if (musica.error) {
+    $('#paso-musica').scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return toast(musica.error, 'bad')
+  }
   if (!st.cliente) return abrirAuth(() => reservar(btn), 'Inicia sesión o crea tu cuenta para reservar')
   const b = st.busqueda
   const items = st.menuSel.items()
   const body = {
-    personas: b.personas, inicio: st.slot,
+    personas: b.personas, tipoSalaId: b.tipoSalaId, inicio: st.slot,
     fin: new Date(new Date(st.slot).getTime() + b.duracionMin * 6e4).toISOString(),
-    ...(b.tematicaId ? { tematicaId: b.tematicaId } : {}),
+    ...musica.datos,
     ...(items.length ? { items } : {}),
     ...(st.cortesia ? { cortesiaProductoId: st.cortesia } : {}),
   }
@@ -587,18 +692,58 @@ function tarjetaReservacion(r) {
   if (r.estado === 'PENDIENTE_PAGO' || r.estado === 'CONFIRMADA')
     acciones.append(h('button.btn.sm.danger', { type: 'button', onclick: (e) => cancelar(r, e.currentTarget) }, 'Cancelar'))
   if (r.estado === 'EN_CURSO') acciones.append(h('button.btn.sm.primary', { type: 'button', onclick: () => pedirEnSala(r) }, 'Pedir a mi sala'))
+  if (['PENDIENTE_PAGO', 'CONFIRMADA', 'EN_CURSO'].includes(r.estado))
+    acciones.append(h('button.btn.sm', { type: 'button', onclick: () => cambiarMusica(r) }, '🎤 Cambiar música'))
 
   const pedidos = r.pedidos.filter((p) => p.estado !== 'CANCELADO')
+  const artistas = (r.artistas || '').split('\n').filter(Boolean)
   return h('article.card.tilt',
     h('div.row.between', h('code', { style: 'font-size:1.1rem;color:var(--gold);letter-spacing:.08em' }, r.codigo), badgeVivo(r.estado)),
     h('h3', { style: 'margin-top:10px' }, fmtRango(r.inicio, r.fin)),
-    h('p.muted.small', `Sala ${r.sala.numero} · ${r.sala.tematica.nombre} · ${r.personas} personas · ${money(r.subtotalSala)}`),
+    h('p.muted.small', `Sala ${r.sala.numero} (${r.sala.tipoSala.nombre}) · ${r.personas} personas · ${money(r.subtotalSala)}`),
+    h('p.musica-linea', '🎤 ', r.tematica ? r.tematica.nombre : 'Mi propia lista',
+      artistas.length ? h('span.muted', ` · ${artistas.join(', ')}`) : null),
     lineaViva(r),
     r.tiempoPerdidoMin ? h('p.small.muted', `Llegaste ${r.retrasoMin} min tarde; se perdieron ${r.tiempoPerdidoMin} min.`) : null,
     pedidos.length ? h('div.small', pedidos.map((p) => h('div.row', { style: 'margin-bottom:6px' }, badgeVivo(p.estado),
       h('span.muted', p.items.map(lineaItem).join(', '))))) : null,
     acciones.childNodes.length ? h('div', { style: 'margin-top:12px' }, acciones) : null,
   )
+}
+
+/** Cambiar el género o la lista de artistas/canciones de una reservación. */
+function cambiarMusica(r) {
+  let m, genero = r.tematica ? r.tematica.id : 'lista'
+  const err = h('div.err')
+  const chips = h('div.chips.generos', [...st.catalogo.tematicas.map((t) => ({ id: t.id, nombre: t.nombre })), { id: 'lista', nombre: '✍️ Mi propia lista' }]
+    .map((o) => h('button.chip', { type: 'button', class: o.id === genero ? 'selected' : '', onclick: (e) => {
+      genero = o.id
+      $$('.chip', chips).forEach((c) => c.classList.remove('selected'))
+      e.currentTarget.classList.add('selected')
+    } }, o.nombre)))
+  const previos = (r.artistas || '').split('\n').filter(Boolean)
+  const inputs = Array.from({ length: Math.max(3, previos.length) }, (_, i) =>
+    h('input', { type: 'text', maxLength: 80, placeholder: `Artista ${i + 1}`, value: previos[i] || '', 'aria-label': `Artista ${i + 1}` }))
+  const canciones = h('textarea', { rows: 3, maxLength: 2400, value: r.canciones || '', 'aria-label': 'Canciones' })
+  const guardar = h('button.btn.primary', { type: 'button' }, 'Guardar')
+  guardar.addEventListener('click', async () => {
+    err.textContent = ''
+    const artistas = [...new Set(inputs.map((i) => i.value.trim()).filter(Boolean))]
+    if (genero === 'lista' && artistas.length < 3) return (err.textContent = 'Escribe al menos 3 artistas para tu lista')
+    if (artistas.length && artistas.length < 3) return (err.textContent = 'Si escribes artistas, que sean al menos 3')
+    const body = {
+      ...(genero !== 'lista' ? { tematicaId: genero } : {}), artistas,
+      canciones: canciones.value.split('\n').map((c) => c.trim()).filter(Boolean).slice(0, 20),
+    }
+    const x = await accion(guardar, () => api.req('PATCH', `/api/cliente/reservaciones/${r.codigo}/musica`, body))
+    if (!x) return
+    m.close(); toast('¡Listo! Actualizamos tu música 🎤', 'ok'); cargarMisReservaciones()
+  })
+  m = modal(`Tu música · ${r.codigo}`, [
+    h('p.muted.small', 'Elige un género o tu propia lista (mínimo 3 artistas).'), chips,
+    h('label', { style: 'margin-top:14px' }, 'Artistas favoritos'), h('div.artistas', inputs),
+    h('label', { style: 'margin-top:12px' }, 'Canciones (una por línea)'), canciones, err,
+  ], [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Volver'), guardar])
 }
 
 /** Badge que late cuando el estado está "en movimiento". */
@@ -625,7 +770,6 @@ async function cancelar(r, btn) {
 
 function reagendar(r) {
   const duracionMin = Math.round((new Date(r.fin) - new Date(r.inicio)) / 6e4)
-  const tema = st.catalogo.tematicas.find((t) => t.nombre === r.sala.tematica.nombre)
   let elegido = null, m
   const fecha = h('input', { type: 'date', min: hoyLocal(), max: hoyLocal(60), value: proximoDiaAbierto() })
   const slots = h('div', { style: 'margin-top:14px' })
@@ -633,8 +777,7 @@ function reagendar(r) {
   const buscar = async () => {
     elegido = null; guardar.disabled = true
     clear(slots).append(h('span.spinner'))
-    const qs = new URLSearchParams({ fecha: fecha.value, personas: r.personas, duracionMin })
-    if (tema) qs.set('tematicaId', tema.id)
+    const qs = new URLSearchParams({ fecha: fecha.value, personas: r.personas, duracionMin, tipoSalaId: r.sala.tipoSalaId })
     try {
       const d = await api.get('/api/publico/disponibilidad?' + qs)
       clear(slots)

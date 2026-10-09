@@ -9,7 +9,7 @@ import { ah, HttpError, normTel } from '../util'
 import { crearSesion, cerrarSesion, revocarActual, csrfDe } from '../security/session'
 import { requireCliente, csrf } from '../middleware/auth'
 import { loginLimiter, limiterRegistro, limiterEscritura } from '../middleware/limiters'
-import { crearReservacion, validarSlot, getConfig, salasLibres } from '../disponibilidad'
+import { crearReservacion, validarSlot, getConfig, salasLibres, validarMusica } from '../disponibilidad'
 import { armarItems } from '../pedidos'
 
 const r = Router()
@@ -17,6 +17,12 @@ const DUMMY = bcrypt.hashSync('hash-de-relleno', 10)
 const pw = z.string().min(10, 'Mínimo 10 caracteres').max(200).regex(/[A-Za-z]/, 'Incluye letras').regex(/\d/, 'Incluye números')
 const salida = (c: { id: number; nombre: string; email: string | null }) => ({ id: c.id, nombre: c.nombre, email: c.email })
 const codigoZ = z.string().trim().toUpperCase().regex(/^ML[0-9A-F]{8}$/, 'Código inválido')
+// Música: un género (tematicaId) o "mi propia lista" de artistas (mínimo 3) y canciones
+const musicaZ = {
+  tematicaId: z.number().int().positive().optional(),
+  artistas: z.array(z.string().trim().max(80)).max(10).optional(),
+  canciones: z.array(z.string().trim().max(120)).max(20).optional(),
+}
 const itemsZ = z.array(z.object({ productoId: z.number().int().positive(), cantidad: z.number().int().min(1).max(20) })).min(1).max(15)
 const D0 = () => new Prisma.Decimal(0)
 
@@ -79,17 +85,19 @@ const mia = async (req: Request, cod: string) => {
 r.get('/reservaciones', ah(async (req, res) => {
   res.json(await prisma.reservacion.findMany({
     where: { clienteId: yo(req).id }, orderBy: { inicio: 'desc' }, take: 50,
-    include: { sala: { select: { numero: true, tematica: { select: { nombre: true } } } }, pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } } },
+    include: { sala: { select: { numero: true, tipoSalaId: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { id: true, nombre: true } }, pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } } },
   }))
 }))
 
 r.post('/reservaciones', limiterEscritura, ah(async (req, res) => {
   const b = z.object({
-    personas: z.number().int().min(1).max(16), tematicaId: z.number().int().optional(), salaNumero: z.number().int().optional(),
+    personas: z.number().int().min(1).max(16), tipoSalaId: z.number().int().positive(), salaNumero: z.number().int().optional(),
     inicio: z.coerce.date(), fin: z.coerce.date(), items: itemsZ.optional(), cortesiaProductoId: z.number().int().positive().optional(),
+    ...musicaZ,
   }).parse(req.body)
   await validarSlot(prisma, b.inicio, b.fin)
-  const x = await crearReservacion({ clienteId: yo(req).id, personas: b.personas, tematicaId: b.tematicaId, salaNumero: b.salaNumero, inicio: b.inicio, fin: b.fin, canal: 'WEB', items: b.items, cortesiaProductoId: b.cortesiaProductoId })
+  const musica = await validarMusica(prisma, b, { obligatoria: true })
+  const x = await crearReservacion({ clienteId: yo(req).id, personas: b.personas, tipoSalaId: b.tipoSalaId, salaNumero: b.salaNumero, inicio: b.inicio, fin: b.fin, canal: 'WEB', items: b.items, cortesiaProductoId: b.cortesiaProductoId, musica })
   res.status(201).json({
     codigo: x.reservacion.codigo, sala: x.sala.numero, totalSala: x.subtotalSala, anticipoPedido: x.anticipoPedido,
     aPagarEnLinea: x.aPagarEnLinea, expiraEn: x.reservacion.expiraEn,
@@ -137,12 +145,21 @@ r.post('/reservaciones/:codigo/reagendar', ah(async (req, res) => {
   if (fin.getTime() - inicio.getTime() !== rv.fin.getTime() - rv.inicio.getTime()) throw new HttpError(400, 'Debe conservar la misma duración')
   const cfg = await validarSlot(prisma, inicio, fin)
   await prisma.$transaction(async (tx) => {
-    const libres = await salasLibres(tx, { tipoSalaId: rv.sala.tipoSalaId, tematicaId: rv.sala.tematicaId, inicio, fin, limpiezaMin: cfg.limpiezaMin, ignorarReservacionId: rv.id })
+    const libres = await salasLibres(tx, { tipoSalaId: rv.sala.tipoSalaId, inicio, fin, limpiezaMin: cfg.limpiezaMin, ignorarReservacionId: rv.id })
     const nueva = libres.find((s) => s.id === rv.salaId) ?? libres[0]
     if (!nueva) throw new HttpError(409, 'No hay salas libres en ese horario')
     await tx.reagendacion.create({ data: { reservacionId: rv.id, inicioAnterior: rv.inicio, finAnterior: rv.fin, salaAnteriorId: rv.salaId, inicioNuevo: inicio, finNuevo: fin, salaNuevaId: nueva.id } })
     await tx.reservacion.update({ where: { id: rv.id }, data: { inicio, fin, salaId: nueva.id } })
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+  res.json({ ok: true })
+}))
+
+// Cambiar la música (género o lista de artistas/canciones) antes de que termine la visita.
+r.patch('/reservaciones/:codigo/musica', ah(async (req, res) => {
+  const rv = await mia(req, req.params.codigo)
+  if (!['PENDIENTE_PAGO', 'CONFIRMADA', 'EN_CURSO'].includes(rv.estado)) throw new HttpError(409, 'Esta reservación ya no se puede modificar')
+  const musica = await validarMusica(prisma, z.object(musicaZ).parse(req.body), { obligatoria: true })
+  await prisma.reservacion.update({ where: { id: rv.id }, data: musica })
   res.json({ ok: true })
 }))
 

@@ -287,6 +287,27 @@ footer .tagline { font-size: .7rem; }
 .selector .menu-item.recomendado { background: rgba(79, 209, 165, .06); margin: 0 -14px; padding-inline: 14px; }
 .tag-sala { margin-left: 6px; font-size: .62rem; vertical-align: 2px; }
 
+/* ── reserva: tamaño de sala ── */
+.tamanos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.tamano {
+  display: flex; flex-direction: column; text-align: left; padding: 0; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--text); font: inherit;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+}
+.tamano img { width: 100%; height: 92px; object-fit: cover; opacity: .75; transition: opacity .2s; }
+.tamano-info { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+.tamano:hover { border-color: var(--accent); transform: translateY(-2px); }
+.tamano.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(180, 92, 255, .35); }
+.tamano.on img { opacity: 1; }
+.tamano .cortesia-tag { margin: 2px 0 0; font-size: .75rem; }
+
+/* ── reserva: música ── */
+.generos { margin-bottom: 14px; }
+.generos .chip { padding: 9px 14px; }
+.artistas { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin: 6px 0 8px; }
+.musica-extra textarea { resize: vertical; min-height: 70px; }
+.musica-linea { margin: 0 0 8px; font-size: .9rem; color: #e9d5ff; }
+
 /* ── botella de cortesía (Sala Premium) ── */
 .cortesia { border: 1px solid rgba(255, 194, 61, .45); border-radius: 12px; padding: 14px; margin-bottom: 18px; background: linear-gradient(135deg, rgba(255, 194, 61, .08), rgba(180, 92, 255, .06)); box-shadow: 0 0 22px rgba(255, 194, 61, .12); }
 .cortesia h3 { color: var(--gold); text-shadow: var(--neon-gold); }

@@ -18,6 +18,12 @@ function quieto(box, pintar) {
   pintar()
   setTimeout(() => box.removeAttribute('data-static')) // el observer de fx corre antes (microtarea)
 }
+/** Género elegido o "Mi lista" con sus artistas (para ambientar la sala). */
+const musicaTxt = (r) => {
+  const artistas = (r.artistas || '').split('\n').filter(Boolean)
+  const base = r.tematica ? r.tematica.nombre : artistas.length ? 'Mi lista' : 'Por definir'
+  return artistas.length ? `${base}: ${artistas.join(', ')}` : base
+}
 const hace = (fecha) => fx.falta(Date.now() - new Date(fecha))
 
 const puede = (...roles) => st.usuario && (st.usuario.rol === 'ADMIN' || roles.includes(st.usuario.rol))
@@ -107,6 +113,7 @@ async function salir(btn, todas) {
 function cambiarPassword() {
   let m
   const err = h('div.err')
+  const selTipo = h('select', { name: 'tipoSalaId' }, cat.tipos.map((t) => h('option', { value: t.id }, `${t.nombre} (hasta ${t.capacidadMax})`)))
   const form = h('form',
     h('div.field', h('label', { for: 'cp-a' }, 'Contraseña actual'), h('input#cp-a', { type: 'password', name: 'actual', required: true, autocomplete: 'current-password' })),
     h('div.field', h('label', { for: 'cp-n' }, 'Nueva (mín. 10, letras y números)'), h('input#cp-n', { type: 'password', name: 'nueva', required: true, minLength: 10, autocomplete: 'new-password' })),
@@ -176,7 +183,9 @@ function detalleReservacion(rv) {
     dl([
       ['Cliente', `${rv.cliente.nombre}${rv.cliente.telefono ? ' · ' + rv.cliente.telefono : ''}`],
       ['Horario', fmtRango(rv.inicio, rv.fin) + (rv.finOriginal ? ` (original ${fmtHora(rv.finOriginal)})` : '')],
-      ['Sala', h('span', `${rv.sala.numero} · ${rv.sala.tematica.nombre} `, badge(rv.sala.estado))],
+      ['Sala', h('span', `${rv.sala.numero} · ${rv.sala.tipoSala.nombre} `, badge(rv.sala.estado))],
+      ['Música', musicaTxt(rv)],
+      rv.canciones ? ['Canciones', rv.canciones.split('\n').join(' · ')] : null,
       ['Personas', rv.personas],
       ['Canal', rv.canal === 'WEB' ? 'En línea' : 'Mostrador'],
       ['Sala (subtotal)', money(rv.subtotalSala)],
@@ -267,8 +276,7 @@ async function mostrador() {
   const botella = h('select', { name: 'cortesiaProductoId' }, (cortesia?.botellas || []).map((b) => h('option', { value: b.id }, b.nombre.replace(' (botella)', ''))))
   const campoBotella = h('div.field', { hidden: true }, h('label', '🍾 Botella de cortesía (Sala Premium)'), botella)
   const revisarCortesia = () => {
-    const n = Number(form.elements.personas.value)
-    const tipo = cat.tipos.find((t) => t.capacidadMin <= n && n <= t.capacidadMax)
+    const tipo = cat.tipos.find((t) => t.id === Number(selTipo.value))
     const aplica = !!cortesia?.botellas.length && tipo?.id === cortesia.tipoSalaId
     campoBotella.hidden = !aplica
     botella.disabled = !aplica // deshabilitado = no se envía en el FormData
@@ -279,7 +287,8 @@ async function mostrador() {
       h('div.field', h('label', 'Teléfono (opcional)'), h('input', { name: 'telefono', type: 'tel', inputMode: 'numeric' })),
       h('div.field', h('label', 'Personas'), h('input', { name: 'personas', type: 'number', min: 1, max: 16, value: 2, required: true })),
       h('div.field', h('label', 'Duración'), h('select', { name: 'duracionMin' }, [30, 60, 90, 120, 150, 180, 210, 240].map((n) => h('option', { value: n, selected: n === 60 }, durTxt(n))))),
-      h('div.field', h('label', 'Temática'), h('select', { name: 'tematicaId' }, h('option', { value: '' }, 'Cualquiera'), cat.tematicas.map((t) => h('option', { value: t.id }, t.nombre)))),
+      h('div.field', h('label', 'Tamaño de sala'), selTipo),
+      h('div.field', h('label', 'Género musical'), h('select', { name: 'tematicaId' }, h('option', { value: '' }, 'Lo elige en sala'), cat.tematicas.map((t) => h('option', { value: t.id }, t.nombre)))),
       h('div.field', h('label', 'Sala # (opcional)'), h('input', { name: 'salaNumero', type: 'number', min: 1 })),
       h('div.field', h('label', 'Método de pago'), metodo),
       campoBotella,
@@ -296,6 +305,7 @@ async function mostrador() {
     const body = { nombre: f.get('nombre'), personas: Number(f.get('personas')), duracionMin: Number(f.get('duracionMin')), metodo: f.get('metodo') }
     if (f.get('telefono')) body.telefono = f.get('telefono')
     if (f.get('tematicaId')) body.tematicaId = Number(f.get('tematicaId'))
+    body.tipoSalaId = Number(f.get('tipoSalaId'))
     if (f.get('salaNumero')) body.salaNumero = Number(f.get('salaNumero'))
     if (f.get('cortesiaProductoId')) body.cortesiaProductoId = Number(f.get('cortesiaProductoId'))
     if (!ahora.checked) {
@@ -310,7 +320,15 @@ async function mostrador() {
       buscar(r.codigo)
     } catch (x) { err.textContent = x.message } finally { ok.disabled = false }
   })
-  form.elements.personas.addEventListener('input', revisarCortesia)
+  // el tamaño se sugiere por personas, pero recepción puede cambiarlo
+  form.elements.personas.addEventListener('input', () => {
+    const n = Number(form.elements.personas.value)
+    const t = cat.tipos.find((x) => x.capacidadMin <= n && n <= x.capacidadMax)
+    if (t) selTipo.value = t.id
+    revisarCortesia()
+  })
+  selTipo.addEventListener('change', revisarCortesia)
+  selTipo.value = (cat.tipos.find((x) => x.capacidadMin <= 2 && 2 <= x.capacidadMax) || cat.tipos[0]).id
   revisarCortesia()
   m = modal('Reservación de mostrador', form, [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Volver'), ok])
 }
@@ -350,10 +368,10 @@ async function cargarAgenda() {
     if (!rs.length) return box.append(h('div.empty', 'Sin reservaciones ese día.'))
     const abrir = puede('RECEPCION', 'OPERACIONES')
     box.append(h('table',
-      h('thead', h('tr', ['Horario', 'Código', 'Cliente', 'Sala', 'Personas', 'Canal', 'Estado'].map((t) => h('th', t)))),
+      h('thead', h('tr', ['Horario', 'Código', 'Cliente', 'Sala', 'Personas', 'Música', 'Canal', 'Estado'].map((t) => h('th', t)))),
       h('tbody', rs.map((r) => h('tr', { class: abrir ? 'click' : '', onclick: abrir ? () => { abrirTab('recepcion'); buscar(r.codigo) } : null },
         h('td', `${fmtHora(r.inicio)}–${fmtHora(r.fin)}`), h('td', h('code', r.codigo)),
-        h('td', r.cliente.nombre), h('td', r.sala.numero), h('td', r.personas),
+        h('td', r.cliente.nombre), h('td', r.sala.numero), h('td', r.personas), h('td.small', musicaTxt(r)),
         h('td.small.muted', r.canal === 'WEB' ? 'En línea' : 'Mostrador'), h('td', badge(r.estado))))),
     ))
   } catch (e) { clear(box).append(h('div.empty.err', e.message)) }
@@ -434,13 +452,14 @@ async function cargarSalas(forzar = true) {
         proxima = h('div.small.muted')
         fx.tic(proxima, () => {
           const resta = new Date(prox.inicio) - Date.now()
-          proxima.textContent = resta > 0 ? `Próxima en ${fx.falta(resta)} · ${prox.codigo}` : `Llegando: ${prox.codigo}`
+          proxima.textContent = (resta > 0 ? `Próxima en ${fx.falta(resta)} · ${prox.codigo}` : `Llegando: ${prox.codigo}`) + ` · 🎤 ${musicaTxt(prox)}`
         })
       }
       box.append(h('div.card.sala-tile.tilt', { class: `${s.estado}${ahora ? ' ocupada' : ''}` },
         h('div.num', s.numero),
-        h('div.small.muted', `${s.tipoSala.nombre} · ${s.tematica.nombre}`),
+        h('div.small.muted', s.tipoSala.nombre),
         h('div', { style: 'margin:8px 0' }, badge(s.estado), ' ', ahora ? h('span.badge.accent.pulso', 'Ocupada') : null),
+        ahora ? h('div.small.musica-linea', '🎤 ', musicaTxt(ahora)) : null,
         enVivo,
         proxima,
         ops && s.estado !== 'LIMPIEZA' ? h('button.btn.sm', { type: 'button', style: 'margin-top:10px', class: s.estado === 'MANTENIMIENTO' ? 'ok' : 'danger', onclick: async (e) => {

@@ -42,7 +42,7 @@
           <div class="eyebrow"><span class="dot" aria-hidden="true"></span>Esta noche suena <b id="rotador">Pop</b><span class="caret" aria-hidden="true"></span></div>
           <h1>Canta bajo la luz de <span>Moonlight</span></h1>
           <p class="tagline">Karaoke &amp; Social Lounge</p>
-          <p>Salas privadas de karaoke con temática Pop, Rock, Retro, K-Pop y Premium Lounge. Elige tu horario, pide tus snacks por adelantado y llega a cantar.</p>
+          <p>Salas privadas de karaoke ambientadas con la música que tú eliges: regional, reguetón, pop, banda, rock, K-Pop y más. Escoge el tamaño de tu sala, tu horario y llega a cantar.</p>
           <div class="row">
             <a class="btn primary lg" href="#reservar">Reservar sala</a>
             <a class="btn lg" href="#salas">Ver salas</a>
@@ -57,7 +57,7 @@
       </div>
 
       <div class="grid cols-auto">
-        <div class="card"><h3>1 · Elige</h3><p class="muted">Fecha, número de personas y duración. Te mostramos los horarios con salas libres.</p></div>
+        <div class="card"><h3>1 · Elige</h3><p class="muted">El tamaño de tu sala, el horario y tu música: un género o tu propia lista de artistas y canciones.</p></div>
         <div class="card"><h3>2 · Paga en línea</h3><p class="muted" id="txt-pago">La sala completa y, si quieres, un anticipo de tu pedido de alimentos y bebidas.</p></div>
         <div class="card"><h3>3 · Llega y canta</h3><p class="muted">Da tu número de reservación en recepción. Tienes unos minutos de tolerancia.</p></div>
       </div>
@@ -72,7 +72,6 @@
         <h2>Nuestras salas</h2>
         <div class="row">
           <select id="filtro-tipo" aria-label="Filtrar por tamaño"><option value="">Todos los tamaños</option></select>
-          <select id="filtro-tema" aria-label="Filtrar por temática"><option value="">Todas las temáticas</option></select>
         </div>
       </div>
       <p class="muted" id="tipos-resumen"></p>
@@ -92,22 +91,39 @@
     <section class="view" id="view-reservar" hidden>
       <h2>Reservar</h2>
       <div class="steps" id="steps">
-        <span class="s on" data-step="1">1. Horario</span>
-        <span class="s" data-step="2">2. Alimentos y bebidas</span>
-        <span class="s" data-step="3">3. Confirmar y pagar</span>
+        <span class="s on" data-step="1">1. Sala y horario</span>
+        <span class="s" data-step="2">2. Tu música</span>
+        <span class="s" data-step="3">3. Alimentos y bebidas</span>
+        <span class="s" data-step="4">4. Confirmar y pagar</span>
       </div>
       <div class="barra-pasos" aria-hidden="true"><div id="barra-pasos"></div></div>
       <div class="layout-2">
         <div class="stack">
           <div class="card" id="paso-1">
+            <h3>Elige el tamaño de tu sala</h3>
+            <div class="tamanos" id="f-tipos" role="radiogroup" aria-label="Tamaño de la sala"></div>
             <form id="form-buscar" class="form-grid">
               <div class="field"><label for="f-fecha">Fecha</label><input type="date" id="f-fecha" required></div>
               <div class="field"><label for="f-personas">Personas</label><input type="number" id="f-personas" min="1" max="16" value="4" required></div>
               <div class="field"><label for="f-duracion">Duración</label><select id="f-duracion"></select></div>
-              <div class="field"><label for="f-tema">Temática</label><select id="f-tema"><option value="">Cualquiera</option></select></div>
             </form>
             <div class="row"><button class="btn primary" form="form-buscar" type="submit">Buscar horarios</button><span class="muted small" id="horario-dia"></span></div>
             <div id="slots" style="margin-top:16px"></div>
+          </div>
+
+          <div class="card" id="paso-musica" hidden>
+            <div class="row between"><h3 style="margin:0">🎤 ¿Qué quieres cantar?</h3><span class="muted small">La sala se ambienta con tu elección</span></div>
+            <p class="muted small">Elige un género o arma tu propia lista con al menos 3 artistas.</p>
+            <div class="chips generos" id="f-generos" role="radiogroup" aria-label="Género musical"></div>
+            <div class="musica-extra">
+              <label id="lbl-artistas">Tus artistas favoritos <span class="muted" id="req-artistas">(opcional; si los escribes, mínimo 3)</span></label>
+              <div class="artistas" id="f-artistas"></div>
+              <button class="btn sm ghost" type="button" id="btn-mas-artista">+ Otro artista</button>
+              <div class="field" style="margin-top:12px">
+                <label for="f-canciones">Canciones que quieres cantar <span class="muted">(opcional, una por línea)</span></label>
+                <textarea id="f-canciones" rows="3" maxlength="2400" placeholder="Ej. Ella baila sola&#10;Tusa&#10;Bohemian Rhapsody"></textarea>
+              </div>
+            </div>
           </div>
 
           <div class="card" id="paso-2" hidden>

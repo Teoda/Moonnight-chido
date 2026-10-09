@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../db'
 import { ah, HttpError, normTel } from '../util'
 import { requireStaff, requireRol, csrf } from '../middleware/auth'
-import { crearReservacion, validarSlot, getConfig, hayConflicto, bloquean } from '../disponibilidad'
+import { crearReservacion, validarSlot, getConfig, hayConflicto, bloquean, validarMusica } from '../disponibilidad'
 import { armarItems } from '../pedidos'
 import { MIN, inicioDiaLocal, rangoMesLocal, ventanaQueContiene } from '../tiempo'
 
@@ -26,7 +26,7 @@ r.get('/reservaciones', requireRol('RECEPCION', 'OPERACIONES', 'FINANZAS'), ah(a
   const desde = q.desde ?? inicioDiaLocal(), hasta = q.hasta ?? new Date(desde.getTime() + 30 * 36e5) // incluye la madrugada
   res.json(await prisma.reservacion.findMany({
     where: { inicio: { gte: desde, lt: hasta } }, orderBy: { inicio: 'asc' }, take: 200,
-    include: { cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true } } },
+    include: { cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true } }, tematica: { select: { nombre: true } } },
   }))
 }))
 
@@ -35,7 +35,7 @@ r.get('/reservaciones/buscar/:codigo', RECEP, ah(async (req, res) => {
   const rv = await prisma.reservacion.findUnique({
     where: { codigo: codigoZ.parse(req.params.codigo) },
     include: {
-      cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true, tematica: { select: { nombre: true } } } },
+      cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { nombre: true } },
       pagos: true, extensiones: true, pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } },
     },
   })
@@ -48,7 +48,9 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
   const b = z.object({
     nombre: z.string().trim().min(2).max(120),
     telefono: z.string().transform(normTel).refine((t) => t === '' || t.length === 10, 'Teléfono de 10 dígitos').optional(),
-    personas: z.number().int().min(1).max(16), tematicaId: z.number().int().optional(), salaNumero: z.number().int().optional(),
+    personas: z.number().int().min(1).max(16), tipoSalaId: z.number().int().positive().optional(), salaNumero: z.number().int().optional(),
+    tematicaId: z.number().int().positive().optional(), artistas: z.array(z.string().trim().max(80)).max(10).optional(),
+    canciones: z.array(z.string().trim().max(120)).max(20).optional(),
     duracionMin: z.number().int().min(30).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
     cortesiaProductoId: z.number().int().positive().optional(),
   }).parse(req.body)
@@ -58,9 +60,10 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
   if (inicio < ahoraMin) throw new HttpError(400, 'La hora de inicio ya pasó')
   const fin = new Date(inicio.getTime() + b.duracionMin * MIN)
   await validarSlot(prisma, inicio, fin, { mostrador: true })
+  const musica = await validarMusica(prisma, b, { obligatoria: false }) // en mostrador la música puede definirse después
   const tel = b.telefono || null
   const cliente = (tel && (await prisma.cliente.findUnique({ where: { telefono: tel } }))) || (await prisma.cliente.create({ data: { nombre: b.nombre, telefono: tel } }))
-  const x = await crearReservacion({ clienteId: cliente.id, personas: b.personas, tematicaId: b.tematicaId, salaNumero: b.salaNumero, inicio, fin, canal: 'MOSTRADOR', creadaPorId: yo(req).id, mostrador: { metodo: b.metodo, iniciarAhora }, cortesiaProductoId: b.cortesiaProductoId })
+  const x = await crearReservacion({ clienteId: cliente.id, personas: b.personas, tipoSalaId: b.tipoSalaId, salaNumero: b.salaNumero, inicio, fin, canal: 'MOSTRADOR', creadaPorId: yo(req).id, mostrador: { metodo: b.metodo, iniciarAhora }, cortesiaProductoId: b.cortesiaProductoId, musica })
   res.status(201).json({ codigo: x.reservacion.codigo, sala: x.sala.numero, estado: x.reservacion.estado, cobrado: x.subtotalSala, inicio, fin })
 }))
 
@@ -245,7 +248,7 @@ r.get('/salas', requireRol('OPERACIONES', 'RECEPCION', 'LIMPIEZA'), ah(async (_r
     orderBy: { numero: 'asc' },
     include: {
       tipoSala: true, tematica: true,
-      reservaciones: { where: { estado: { in: ['CONFIRMADA', 'EN_CURSO'] }, fin: { gt: ahora }, inicio: { lt: new Date(ahora.getTime() + 24 * 36e5) } }, orderBy: { inicio: 'asc' }, take: 2, select: { codigo: true, estado: true, inicio: true, fin: true } },
+      reservaciones: { where: { estado: { in: ['CONFIRMADA', 'EN_CURSO'] }, fin: { gt: ahora }, inicio: { lt: new Date(ahora.getTime() + 24 * 36e5) } }, orderBy: { inicio: 'asc' }, take: 2, select: { codigo: true, estado: true, inicio: true, fin: true, artistas: true, tematica: { select: { nombre: true } } } },
     },
   }))
 }))

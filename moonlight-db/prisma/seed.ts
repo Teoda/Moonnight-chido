@@ -14,25 +14,25 @@ async function main() {
   for (const t of tipos)
     await prisma.tipoSala.upsert({ where: { codigo: t.codigo }, update: t, create: t })
 
-  const temas = ['Pop', 'Rock', 'Retro', 'K-Pop', 'Premium Lounge']
-  for (const nombre of temas)
-    await prisma.tematica.upsert({ where: { nombre }, update: {}, create: { nombre } })
-
-  // 15 salas según el plano: 1-5 pequeñas, 6-9 medianas, 10-15 premium.
-  // La temática de cada sala es una propuesta; cámbiala según la decoración real.
-  const plano: [number, string, string][] = [
-    [1, 'PEQUENA', 'Pop'], [2, 'PEQUENA', 'Rock'], [3, 'PEQUENA', 'Retro'], [4, 'PEQUENA', 'K-Pop'], [5, 'PEQUENA', 'Pop'],
-    [6, 'MEDIANA', 'Pop'], [7, 'MEDIANA', 'Rock'], [8, 'MEDIANA', 'Retro'], [9, 'MEDIANA', 'K-Pop'],
-    [10, 'PREMIUM', 'Pop'], [11, 'PREMIUM', 'Rock'], [12, 'PREMIUM', 'Retro'], [13, 'PREMIUM', 'K-Pop'],
-    [14, 'PREMIUM', 'Premium Lounge'], [15, 'PREMIUM', 'Premium Lounge'],
+  // Géneros musicales: el cliente elige uno al reservar y la sala se ambienta con él.
+  // Los que ya no estén en la lista se desactivan (no se borran: hay reservaciones que los usan).
+  const generos = [
+    'Regional mexicano / Corridos tumbados', 'Reguetón / Urbano latino', 'Pop latino e internacional',
+    'Banda / Grupero', 'Rock en español e inglés', 'Retro / Clásicos', 'K-Pop', 'Cumbia / Tropical', 'Electrónica / Dance',
   ]
-  for (const [numero, tipo, tema] of plano) {
+  for (const [orden, nombre] of generos.entries())
+    await prisma.tematica.upsert({ where: { nombre }, update: { orden, activo: true }, create: { nombre, orden } })
+  await prisma.tematica.updateMany({ where: { nombre: { notIn: generos } }, data: { activo: false } })
+
+  // 15 salas según el plano: 1-5 pequeñas, 6-9 medianas, 10-15 premium. Sin temática fija.
+  const plano: [number, string][] = [
+    [1, 'PEQUENA'], [2, 'PEQUENA'], [3, 'PEQUENA'], [4, 'PEQUENA'], [5, 'PEQUENA'],
+    [6, 'MEDIANA'], [7, 'MEDIANA'], [8, 'MEDIANA'], [9, 'MEDIANA'],
+    [10, 'PREMIUM'], [11, 'PREMIUM'], [12, 'PREMIUM'], [13, 'PREMIUM'], [14, 'PREMIUM'], [15, 'PREMIUM'],
+  ]
+  for (const [numero, tipo] of plano) {
     const tipoSala = await prisma.tipoSala.findUniqueOrThrow({ where: { codigo: tipo } })
-    const tematica = await prisma.tematica.findUniqueOrThrow({ where: { nombre: tema } })
-    await prisma.sala.upsert({
-      where: { numero }, update: {},
-      create: { numero, tipoSalaId: tipoSala.id, tematicaId: tematica.id },
-    })
+    await prisma.sala.upsert({ where: { numero }, update: { tematicaId: null }, create: { numero, tipoSalaId: tipoSala.id } })
   }
 
   // Fotos por tipo de sala (solo si la sala aún no tiene una propia)

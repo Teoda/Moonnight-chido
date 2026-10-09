@@ -111,12 +111,17 @@ model TipoSala {
   @@map("tipos_sala")
 }
 
+// Temática = género musical que elige el cliente al reservar (la sala se ambienta con esa elección).
+// Las salas ya no tienen una temática fija.
 model Tematica {
-  id          Int     @id @default(autoincrement())
-  nombre      String  @unique @db.VarChar(50)
-  descripcion String? @db.VarChar(255)
-  fotoUrl     String? @db.VarChar(255)
-  salas       Sala[]
+  id            Int           @id @default(autoincrement())
+  nombre        String        @unique @db.VarChar(50)
+  descripcion   String?       @db.VarChar(255)
+  fotoUrl       String?       @db.VarChar(255)
+  activo        Boolean       @default(true)
+  orden         Int           @default(0)
+  salas         Sala[]
+  reservaciones Reservacion[]
 
   @@map("tematicas")
 }
@@ -125,12 +130,12 @@ model Sala {
   id            Int           @id @default(autoincrement())
   numero        Int           @unique
   tipoSalaId    Int
-  tematicaId    Int
+  tematicaId    Int? // ya no se usa: la temática la elige el cliente en cada reservación
   estado        EstadoSala    @default(ACTIVA)
   descripcion   String?       @db.VarChar(255) // pendiente: contenido real
   fotoUrl       String?       @db.VarChar(255) // pendiente: fotos reales
   tipoSala      TipoSala      @relation(fields: [tipoSalaId], references: [id])
-  tematica      Tematica      @relation(fields: [tematicaId], references: [id])
+  tematica      Tematica?     @relation(fields: [tematicaId], references: [id])
   reservaciones Reservacion[]
   incidencias   Incidencia[]
   limpiezas     Limpieza[]
@@ -242,6 +247,9 @@ model Reservacion {
   retrasoMin       Int               @default(0)
   tiempoPerdidoMin Int               @default(0)
   promocionId      Int?
+  tematicaId       Int? // género musical elegido; null = "mi propia lista"
+  artistas         String?           @db.VarChar(1000) // artistas favoritos, uno por línea (mínimo 3 si se indican)
+  canciones        String?           @db.Text // canciones pedidas, una por línea
   notas            String?           @db.Text
   checkInEn        DateTime?
   checkOutEn       DateTime?
@@ -252,6 +260,7 @@ model Reservacion {
   cliente        Cliente        @relation(fields: [clienteId], references: [id])
   sala           Sala           @relation(fields: [salaId], references: [id])
   promocion      Promocion?     @relation(fields: [promocionId], references: [id])
+  tematica       Tematica?      @relation(fields: [tematicaId], references: [id])
   creadaPor      Usuario?       @relation(fields: [creadaPorId], references: [id])
   pagos          Pago[]
   cancelacion    Cancelacion?
