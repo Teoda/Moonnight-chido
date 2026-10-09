@@ -148,31 +148,102 @@ async function accion(btn, fn) {
   try { return await fn() } catch (e) { toast(e.message, 'bad'); return undefined } finally { if (btn) btn.disabled = false }
 }
 
-/** Selector de productos del menú con cantidades. Devuelve { el, items(), total(), reset() }. */
-function selectorMenu(menu, onChange = () => {}) {
+// ── carta ──
+const MAX_LINEAS = 15 // la API acepta hasta 15 productos distintos por pedido
+
+/** Agrupa la carta por sección: "Botellas · Tequila" → Map { 'Botellas' → Map { 'Tequila' → [productos] } }. */
+function agruparCarta(menu) {
+  const out = new Map()
+  for (const p of menu) {
+    const [grupo, sub = ''] = (p.seccion || 'Otros').split(' · ')
+    if (!out.has(grupo)) out.set(grupo, new Map())
+    const g = out.get(grupo)
+    if (!g.has(sub)) g.set(sub, [])
+    g.get(sub).push(p)
+  }
+  return out
+}
+const lineasPaquete = (p) => (p.descripcion || '').split('\n').filter(Boolean)
+const mas18 = () => h('span.badge.mas18', { title: 'Venta solo a mayores de edad' }, '+18')
+
+/**
+ * Selector de productos con cantidades, agrupado por sección (desplegables).
+ * opts.tipoSalaId: resalta y abre primero los paquetes pensados para ese tipo de sala (se puede cambiar con recomendar()).
+ * Devuelve { el, items(), total(), reset(), recomendar(tipoSalaId) }.
+ */
+function selectorMenu(menu, onChange = () => {}, opts = {}) {
   const cant = new Map()
-  const el = h('div')
-  const grupos = [['ALIMENTO', 'Alimentos'], ['BEBIDA', 'Bebidas']]
-  for (const [cat, titulo] of grupos) {
-    const prods = menu.filter((p) => p.categoria === cat)
-    if (!prods.length) continue
-    el.append(h('h3', { style: 'margin-top:12px' }, titulo))
-    for (const p of prods) {
-      const n = h('span', '0')
-      const set = (v) => { v = Math.max(0, Math.min(20, v)); v ? cant.set(p.id, v) : cant.delete(p.id); n.textContent = v; onChange() }
-      el.append(h('div.menu-item',
-        h('div', h('div', p.nombre), h('div.muted.small', money(p.precio))),
-        h('div.qty',
-          h('button', { type: 'button', 'aria-label': `Quitar ${p.nombre}`, onclick: () => set((cant.get(p.id) || 0) - 1) }, '−'),
-          n,
-          h('button', { type: 'button', 'aria-label': `Agregar ${p.nombre}`, onclick: () => set((cant.get(p.id) || 0) + 1) }, '+')),
-      ))
+  const contadores = new Map()
+  const el = h('div.selector')
+  const resumenes = []
+  const tipos = new Map((opts.tipos || []).map((t) => [t.id, t.nombre]))
+
+  const set = (p, v) => {
+    v = Math.max(0, Math.min(20, v))
+    if (v && !cant.has(p.id) && cant.size >= MAX_LINEAS) return toast(`Máximo ${MAX_LINEAS} productos distintos por pedido`, 'bad')
+    v ? cant.set(p.id, v) : cant.delete(p.id)
+    contadores.get(p.id).textContent = v
+    contadores.get(p.id).closest('.menu-item').classList.toggle('elegido', v > 0)
+    resumenes.forEach((f) => f())
+    onChange()
+  }
+  const fila = (p) => {
+    const n = h('span', '0')
+    contadores.set(p.id, n)
+    return h('div.menu-item', { dataset: { tipo: p.tipoSalaId || '' } },
+      h('div',
+        h('div', p.nombre, ' ', p.alcohol ? mas18() : null),
+        p.categoria === 'PAQUETE' ? h('div.muted.small', lineasPaquete(p).join(' · ')) : null,
+        h('div.small', { style: 'color:var(--gold)' }, money(p.precio))),
+      h('div.qty',
+        h('button', { type: 'button', 'aria-label': `Quitar ${p.nombre}`, onclick: () => set(p, (cant.get(p.id) || 0) - 1) }, '−'),
+        n,
+        h('button', { type: 'button', 'aria-label': `Agregar ${p.nombre}`, onclick: () => set(p, (cant.get(p.id) || 0) + 1) }, '+')))
+  }
+
+  let paquetes = null
+  for (const [grupo, subs] of agruparCarta(menu)) {
+    const ids = [...subs.values()].flat().map((p) => p.id)
+    const cuenta = h('span.badge.accent', { hidden: true })
+    resumenes.push(() => {
+      const n = ids.reduce((a, id) => a + (cant.get(id) || 0), 0)
+      cuenta.hidden = !n
+      cuenta.textContent = `${n} elegido${n === 1 ? '' : 's'}`
+    })
+    const det = h('details.grupo-carta', h('summary', h('span', grupo), cuenta))
+    for (const [sub, prods] of subs) {
+      if (sub) det.append(h('div.sub-carta', sub))
+      const lista = h('div.lista-carta', prods.map(fila))
+      det.append(lista)
+      if (grupo === 'Paquetes') paquetes = { det, lista }
+    }
+    el.append(det)
+  }
+
+  /** Pone primero (y marca) los paquetes del tipo de sala elegido. */
+  const recomendar = (tipoSalaId) => {
+    if (!paquetes) return
+    paquetes.det.open = !!tipoSalaId
+    for (const it of paquetes.lista.children) {
+      const mio = tipoSalaId && Number(it.dataset.tipo) === tipoSalaId
+      it.classList.toggle('recomendado', !!mio)
+      it.style.order = mio ? -1 : 0
+      const tag = it.querySelector('.tag-sala')
+      if (tag) tag.remove()
+      if (it.dataset.tipo && tipos.size) it.firstChild.firstChild.append(h('span.badge.tag-sala', { class: mio ? 'ok' : '' }, mio ? 'Para tu sala' : `Sala ${tipos.get(Number(it.dataset.tipo)) || ''}`))
     }
   }
+  recomendar(opts.tipoSalaId)
+
   return {
-    el,
+    el, recomendar,
     items: () => [...cant].map(([productoId, cantidad]) => ({ productoId, cantidad })),
     total: () => [...cant].reduce((a, [id, c]) => a + Number(menu.find((p) => p.id === id).precio) * c, 0),
-    reset: () => { cant.clear(); $$('.qty span', el).forEach((s) => (s.textContent = '0')); onChange() },
+    reset: () => {
+      cant.clear()
+      contadores.forEach((s) => { s.textContent = '0'; s.closest('.menu-item').classList.remove('elegido') })
+      resumenes.forEach((f) => f())
+      onChange()
+    },
   }
 }

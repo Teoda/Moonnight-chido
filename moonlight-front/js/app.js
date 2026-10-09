@@ -88,9 +88,10 @@ async function cargarCatalogo() {
     `Cancelando con ${reglas.horasCancelacion} h o más de anticipación se reembolsa todo. ` +
     `Al terminar, la sala se limpia ${reglas.limpiezaMin} min, por eso el tiempo extra depende de la siguiente reservación.`
 
-  st.menuSel = selectorMenu(st.catalogo.menu, pintarResumen)
+  st.menuSel = selectorMenu(st.catalogo.menu, pintarResumen, { tipos })
   $('#menu-reserva').append(st.menuSel.el)
   pintarMenu()
+  pintarTiposInicio()
   pintarResumen()
 }
 
@@ -161,7 +162,9 @@ function pintarSalas() {
   if (!lista.length) return box.append(h('div.empty', 'No hay salas con esos filtros.'))
   for (const s of lista) {
     box.append(h('article.card.sala.tilt',
-      h('div.thumb', { class: `t-${slug(s.tematica)}` }, `#${s.numero}`),
+      s.fotoUrl
+        ? h('div.thumb.foto', h('img', { src: s.fotoUrl, alt: `Sala ${s.numero}, ${s.tipo}`, loading: 'lazy' }), h('span', `#${s.numero}`))
+        : h('div.thumb', { class: `t-${slug(s.tematica)}` }, `#${s.numero}`),
       h('div.row.between', h('h3', { style: 'margin:0' }, s.tematica), h('span.badge.accent', s.tipo)),
       h('p.muted.small', s.descripcion || `Sala ${s.tipo.toLowerCase()} con temática ${s.tematica}.`),
       h('div.row.between',
@@ -182,14 +185,59 @@ function reservarSala(s) {
   buscarHorarios()
 }
 
+// Fotos por tipo de sala (las salas también traen la suya en fotoUrl)
+const FOTOS_TIPO = { PEQUENA: '/img/salas/pequena.jpg', MEDIANA: '/img/salas/mediana.jpg', PREMIUM: '/img/salas/premium.jpg' }
+const ORDEN_GRUPOS = ['Paquetes', 'Botellas', 'Refrescos y aguas', 'Botanas']
+
 function pintarMenu() {
+  const { menu, tipos } = st.catalogo
+  const grupos = agruparCarta(menu)
+  const nombres = [...ORDEN_GRUPOS.filter((g) => grupos.has(g)), ...[...grupos.keys()].filter((g) => !ORDEN_GRUPOS.includes(g))]
   const box = clear($('#lista-menu'))
-  for (const [cat, titulo] of [['ALIMENTO', 'Alimentos'], ['BEBIDA', 'Bebidas']]) {
-    const prods = st.catalogo.menu.filter((p) => p.categoria === cat)
-    if (!prods.length) continue
-    box.append(h('div.card.tilt', h('h3', titulo), prods.map((p) =>
-      h('div.menu-item', h('span', p.nombre), h('b', money(p.precio))))))
+  // navegación por secciones
+  append(clear($('#menu-nav')), nombres.map((g) =>
+    h('button.chip', { type: 'button', onclick: () => $(`#carta-${slug(g)}`).scrollIntoView({ behavior: 'smooth', block: 'start' }) }, g)))
+
+  for (const g of nombres) {
+    const subs = grupos.get(g)
+    const seccion = h('section.carta-seccion', { id: `carta-${slug(g)}` }, h('h3.titulo-carta', g))
+    if (g === 'Paquetes') {
+      seccion.append(h('p.muted.small', 'Consumos sugeridos por tipo de sala. No incluyen la renta de la sala.'))
+      const grid = h('div.grid.cols-3')
+      for (const t of tipos) {
+        for (const p of menu.filter((x) => x.categoria === 'PAQUETE' && x.tipoSalaId === t.id)) {
+          grid.append(h('article.card.paquete.tilt', { class: p.alcohol ? 'con-alcohol' : '' },
+            h('div.row.between', h('span.badge.accent', `Sala ${t.nombre}`), p.alcohol ? h('span.row', { style: 'gap:6px' }, h('span.badge.warn', 'Con botella'), mas18()) : h('span.badge.ok', 'Sin alcohol')),
+            h('h3', { style: 'margin:12px 0 8px' }, p.nombre),
+            h('ul.lista-paquete', lineasPaquete(p).map((l) => h('li', l))),
+            h('div.price', money(p.precio))))
+        }
+      }
+      seccion.append(grid)
+    } else {
+      const grid = h('div.grid.cols-3')
+      for (const [sub, prods] of subs) {
+        grid.append(h('div.card.tilt',
+          sub ? h('h3', sub, prods.some((p) => p.alcohol) ? [' ', mas18()] : null) : null,
+          prods.map((p) => h('div.menu-item', h('span', p.nombre.replace(' (botella)', '')), h('b', money(p.precio))))))
+      }
+      seccion.append(grid)
+      if (g === 'Botellas') seccion.append(h('p.muted.small', 'Botellas de 700–750 ml aprox. según marca. Pregunta en barra si hielo, vasos y mezcladores se cobran por separado.'))
+    }
+    box.append(seccion)
   }
+}
+
+/** Escaparate del inicio: los tres tipos de sala con su foto. */
+function pintarTiposInicio() {
+  const box = $('#tipos-inicio')
+  if (!box) return
+  append(clear(box), st.catalogo.tipos.map((t) => h('article.card.sala.tilt',
+    h('div.thumb.foto', h('img', { src: FOTOS_TIPO[t.codigo] || '', alt: `Sala ${t.nombre}`, loading: 'lazy' }), h('span', t.nombre)),
+    h('div.row.between', h('h3', { style: 'margin:0' }, `Sala ${t.nombre}`), h('span.badge.accent', `${t.capacidadMin}–${t.capacidadMax} personas`)),
+    h('p.muted.small', t.descripcion || `Ideal para grupos de ${t.capacidadMin} a ${t.capacidadMax} personas.`),
+    h('div.row.between', h('div.price', money(t.precioHora), h('small', ' /hora')),
+      h('a.btn.sm.primary', { href: '#salas', onclick: () => { $('#filtro-tipo').value = t.nombre } }, 'Ver salas')))))
 }
 
 // ───────────── reservar ─────────────
@@ -205,6 +253,7 @@ async function buscarHorarios() {
   if (!fecha || !personas) return toast('Elige fecha y número de personas', 'bad')
   st.busqueda = { fecha, personas, duracionMin, tematicaId: tematicaId ? Number(tematicaId) : undefined }
   st.slot = null
+  st.menuSel?.recomendar(tipoPara(personas)?.id)
   mostrarPasos()
   const box = clear($('#slots'))
   box.append(h('div.empty', h('span.spinner')))
@@ -574,7 +623,8 @@ function reagendar(r) {
 function pedirEnSala(r) {
   let m
   const total = h('b', money(0))
-  const sel = selectorMenu(st.catalogo.menu, () => { total.textContent = money(sel.total()) })
+  const tipo = st.catalogo.tipos.find((t) => t.capacidadMin <= r.personas && r.personas <= t.capacidadMax)
+  const sel = selectorMenu(st.catalogo.menu, () => { total.textContent = money(sel.total()) }, { tipos: st.catalogo.tipos, tipoSalaId: tipo?.id })
   const enviar = h('button.btn.primary', { type: 'button' }, 'Enviar pedido')
   enviar.addEventListener('click', async () => {
     const items = sel.items()

@@ -61,6 +61,9 @@
         <div class="card"><h3>2 · Paga en línea</h3><p class="muted" id="txt-pago">La sala completa y, si quieres, un anticipo de tu pedido de alimentos y bebidas.</p></div>
         <div class="card"><h3>3 · Llega y canta</h3><p class="muted">Da tu número de reservación en recepción. Tienes unos minutos de tolerancia.</p></div>
       </div>
+
+      <div class="row between" style="margin-top:44px"><h2 style="margin:0">Elige tu sala</h2><a href="#menu" class="btn sm">Ver la carta →</a></div>
+      <div class="grid cols-auto" id="tipos-inicio" style="margin-top:16px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
     </section>
 
     <!-- SALAS -->
@@ -78,9 +81,11 @@
 
     <!-- MENÚ -->
     <section class="view" id="view-menu" hidden>
-      <h2>Menú</h2>
-      <p class="muted">Puedes pedir por adelantado al reservar o desde tu sala durante la visita.</p>
-      <div class="grid cols-2" id="lista-menu"></div>
+      <h2>Carta</h2>
+      <p class="muted">Pide por adelantado al reservar o desde tu sala durante la visita. Precios en pesos mexicanos (MXN).</p>
+      <div class="chips" id="menu-nav" style="margin-bottom:8px"></div>
+      <div id="lista-menu"></div>
+      <p class="aviso-alcohol"><b>+18</b> Venta de bebidas alcohólicas exclusivamente a mayores de edad. Se solicitará identificación oficial.</p>
     </section>
 
     <!-- RESERVAR -->

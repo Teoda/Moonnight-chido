@@ -9,7 +9,7 @@ const r = Router()
 
 r.get('/catalogo', ah(async (_req, res) => {
   const [tipos, tematicas, menu, horarios, cfg] = await Promise.all([
-    prisma.tipoSala.findMany(), prisma.tematica.findMany(), prisma.productoMenu.findMany({ where: { activo: true } }),
+    prisma.tipoSala.findMany(), prisma.tematica.findMany(), prisma.productoMenu.findMany({ where: { activo: true }, orderBy: { orden: 'asc' } }),
     prisma.horarioOperacion.findMany({ where: { activo: true }, orderBy: { diaSemana: 'asc' } }), getConfig(prisma),
   ])
   res.json({ tipos, tematicas, menu, horarios, reglas: { limpiezaMin: cfg.limpiezaMin, pasoMin: cfg.pasoMin, anticipoPedidoPct: cfg.anticipoPedidoPct, horasCancelacion: cfg.horasCancelacion, toleranciaMin: cfg.toleranciaMin } })

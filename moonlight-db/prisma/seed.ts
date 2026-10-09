@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { CARTA } from './carta'
 
 const prisma = new PrismaClient()
 
@@ -34,12 +35,21 @@ async function main() {
     })
   }
 
-  const menu: [string, 'ALIMENTO' | 'BEBIDA', number][] = [
-    ['Nachos', 'ALIMENTO', 120], ['Alitas', 'ALIMENTO', 160], ['Hamburguesa', 'ALIMENTO', 140],
-    ['Refresco', 'BEBIDA', 40], ['Cerveza', 'BEBIDA', 70], ['Coctel', 'BEBIDA', 110], ['Agua', 'BEBIDA', 25],
-  ]
-  for (const [nombre, categoria, precio] of menu)
-    await prisma.productoMenu.upsert({ where: { nombre }, update: {}, create: { nombre, categoria, precio } })
+  // Fotos por tipo de sala (solo si la sala aún no tiene una propia)
+  const fotos: Record<string, string> = { PEQUENA: '/img/salas/pequena.jpg', MEDIANA: '/img/salas/mediana.jpg', PREMIUM: '/img/salas/premium.jpg' }
+  for (const [codigo, fotoUrl] of Object.entries(fotos))
+    await prisma.sala.updateMany({ where: { tipoSala: { codigo }, fotoUrl: null }, data: { fotoUrl } })
+
+  // Carta (prisma/carta.ts): se actualiza por nombre; lo que ya no está en la carta se desactiva
+  const tiposPorCodigo = Object.fromEntries((await prisma.tipoSala.findMany()).map((t) => [t.codigo, t.id]))
+  for (const [orden, p] of CARTA.entries()) {
+    const data = {
+      categoria: p.categoria, seccion: p.seccion, precio: p.precio, alcohol: p.alcohol ?? false,
+      descripcion: p.descripcion ?? null, tipoSalaId: p.tipoSala ? tiposPorCodigo[p.tipoSala] : null, orden, activo: true,
+    }
+    await prisma.productoMenu.upsert({ where: { nombre: p.nombre }, update: data, create: { nombre: p.nombre, ...data } })
+  }
+  await prisma.productoMenu.updateMany({ where: { nombre: { notIn: CARTA.map((p) => p.nombre) } }, data: { activo: false } })
 
   // Promociones del plan de negocio
   if ((await prisma.promocion.count()) === 0) {
@@ -84,7 +94,7 @@ async function main() {
   for (const u of usuarios)
     await prisma.usuario.upsert({ where: { email: u.email }, update: {}, create: { ...u, passwordHash } })
 
-  console.log('Seed listo: tipos, temáticas, 15 salas, menú, promociones, horario, configuración y usuarios.')
+  console.log(`Seed listo: tipos, temáticas, 15 salas con foto, carta (${CARTA.length} productos), promociones, horario, configuración y usuarios.`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) }).finally(() => prisma.$disconnect())

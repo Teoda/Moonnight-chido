@@ -215,7 +215,8 @@ async function pedidoStaff(rv, listo) {
   try { cat = await catalogo() } catch (e) { return toast(e.message, 'bad') }
   let m
   const total = h('b', money(0))
-  const sel = selectorMenu(cat.menu, () => { total.textContent = money(sel.total()) })
+  const tipo = cat.tipos.find((t) => t.capacidadMin <= rv.personas && rv.personas <= t.capacidadMax)
+  const sel = selectorMenu(cat.menu, () => { total.textContent = money(sel.total()) }, { tipos: cat.tipos, tipoSalaId: tipo?.id })
   const ok = h('button.btn.primary', { type: 'button' }, 'Enviar a barra')
   ok.addEventListener('click', async () => {
     const items = sel.items()
