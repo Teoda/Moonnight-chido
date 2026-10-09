@@ -62,10 +62,14 @@ async function main() {
     })
   }
 
-  // Horario: martes (2) a sábado (6), de 17:00 a 01:00 (cierra de madrugada del día siguiente).
-  // OJO: el sábado se recibió como "5:00 pm a 1:00 pm"; se asumió 1:00 am. Corrígelo aquí si no es así.
-  for (const diaSemana of [2, 3, 4, 5, 6])
-    await prisma.horarioOperacion.upsert({ where: { diaSemana }, update: {}, create: { diaSemana, abre: '17:00', cierra: '01:00' } })
+  // Horario: lunes (1) a sábado (6), de 12:00 a 02:00 (cierra de madrugada del día siguiente). Domingo cerrado.
+  // El seed deja la tabla igual a esta lista: actualiza los días abiertos y desactiva los demás.
+  const HORARIO = { dias: [1, 2, 3, 4, 5, 6], abre: '12:00', cierra: '02:00' }
+  for (const diaSemana of HORARIO.dias) {
+    const data = { abre: HORARIO.abre, cierra: HORARIO.cierra, activo: true }
+    await prisma.horarioOperacion.upsert({ where: { diaSemana }, update: data, create: { diaSemana, ...data } })
+  }
+  await prisma.horarioOperacion.updateMany({ where: { diaSemana: { notIn: HORARIO.dias } }, data: { activo: false } })
 
   const config: Record<string, string> = {
     limpiezaMin: '15',                    // bloqueo de la sala al terminar cada reservación
@@ -76,6 +80,8 @@ async function main() {
     retencionTardiaPct: '30',             // % retenido si se cancela con menos de 24 h (por definir)
     toleranciaLlegadaMin: '10',           // pasados estos min sin llegar = no-show
     minutosVencimientoPendientePago: '30',
+    cortesiaTipoSala: 'PREMIUM',           // tipo de sala que incluye botella de cortesía
+    cortesiaTopePrecio: '550',            // el cliente elige entre las botellas de hasta este precio
   }
   for (const [clave, valor] of Object.entries(config))
     await prisma.configuracion.upsert({ where: { clave }, update: {}, create: { clave, valor } })

@@ -247,3 +247,7 @@ function selectorMenu(menu, onChange = () => {}, opts = {}) {
     },
   }
 }
+
+/** "2× Nachos"; las líneas con precio $0 son la botella de cortesía de la Sala Premium. */
+const esCortesia = (i) => i.precioUnitario != null && Number(i.precioUnitario) === 0
+const lineaItem = (i) => `${i.cantidad}× ${i.producto.nombre}${esCortesia(i) ? ' 🍾 cortesía' : ''}`

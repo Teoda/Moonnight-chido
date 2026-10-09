@@ -15,7 +15,29 @@ export async function getConfig(db: Db) {
     anticipoPedidoPct: n('anticipoPedidoPct', 30), horasCancelacion: n('horasCancelacionConReembolso', 24),
     retencionTardiaPct: n('retencionTardiaPct', 30), toleranciaMin: n('toleranciaLlegadaMin', 10),
     vencePendienteMin: n('minutosVencimientoPendientePago', 30),
+    cortesiaTipo: m.cortesiaTipoSala ?? 'PREMIUM',       // tipo de sala que incluye botella de cortesía
+    cortesiaTopePrecio: n('cortesiaTopePrecio', 550),    // el cliente elige entre las botellas de hasta este precio
   }
+}
+
+/** Botellas que el cliente puede elegir como cortesía (botellas activas con precio <= tope). */
+export function botellasCortesia(db: Db, topePrecio: number) {
+  return db.productoMenu.findMany({
+    where: { activo: true, alcohol: true, categoria: 'BEBIDA', seccion: { startsWith: 'Botellas' }, precio: { lte: topePrecio } },
+    orderBy: { orden: 'asc' }, select: { id: true, nombre: true, precio: true },
+  })
+}
+
+/** Valida la botella de cortesía: obligatoria para el tipo de sala que la incluye y prohibida para los demás. */
+async function lineaCortesia(db: Db, cfg: Awaited<ReturnType<typeof getConfig>>, tipoCodigo: string, productoId?: number) {
+  if (tipoCodigo !== cfg.cortesiaTipo) {
+    if (productoId) throw new HttpError(400, 'La botella de cortesía solo aplica para la Sala Premium')
+    return null
+  }
+  if (!productoId) throw new HttpError(400, 'Elige la botella de cortesía incluida con la Sala Premium')
+  const permitidas = await botellasCortesia(db, cfg.cortesiaTopePrecio)
+  if (!permitidas.some((p) => p.id === productoId)) throw new HttpError(400, 'Esa botella no está disponible como cortesía')
+  return { productoId, cantidad: 1, precioUnitario: new Prisma.Decimal(0) }
 }
 
 /** Reservaciones que bloquean una sala (las pendientes de pago solo hasta que vencen). */
@@ -101,12 +123,14 @@ export async function crearReservacion(d: {
   clienteId: number; personas: number; tematicaId?: number; salaNumero?: number; inicio: Date; fin: Date
   canal: 'WEB' | 'MOSTRADOR'; creadaPorId?: number; items?: { productoId: number; cantidad: number }[]
   mostrador?: { metodo: 'EFECTIVO' | 'TARJETA'; iniciarAhora: boolean }
+  cortesiaProductoId?: number // botella incluida con la Sala Premium
 }) {
   for (let intento = 0; intento < 3; intento++) {
     try {
       return await prisma.$transaction(async (tx) => {
         const cfg = await getConfig(tx)
         const tipo = await tipoPorPersonas(tx, d.personas)
+        const cortesia = await lineaCortesia(tx, cfg, tipo.codigo, d.cortesiaProductoId)
         const [sala] = await salasLibres(tx, { tipoSalaId: tipo.id, tematicaId: d.tematicaId, salaNumero: d.salaNumero, inicio: d.inicio, fin: d.fin, limpiezaMin: cfg.limpiezaMin, listas: d.mostrador?.iniciarAhora })
         if (!sala) throw new HttpError(409, 'No hay salas disponibles en ese horario')
         const horas = new Prisma.Decimal((d.fin.getTime() - d.inicio.getTime()) / MIN).div(60)
@@ -121,11 +145,19 @@ export async function crearReservacion(d: {
             checkInEn: d.mostrador?.iniciarAhora ? new Date() : null, creadaPorId: d.creadaPorId,
           },
         })
+        // Preorden: lo pedido en línea (se anticipa un %) + la botella de cortesía ($0). Queda EN_ESPERA
+        // y recepción la libera a barra cuando el cliente ya ingresó.
         let anticipoPedido = new Prisma.Decimal(0)
-        if (web && d.items?.length) {
-          const { lineas, total } = await armarItems(tx, d.items)
-          anticipoPedido = total.mul(cfg.anticipoPedidoPct).div(100).toDecimalPlaces(2)
-          await tx.pedido.create({ data: { reservacionId: rv.id, origen: 'PREORDEN', estado: 'EN_ESPERA', total, anticipo: anticipoPedido, items: { create: lineas } } })
+        const preorden = web && d.items?.length ? await armarItems(tx, d.items) : { lineas: [], total: new Prisma.Decimal(0) }
+        const lineas = cortesia ? [...preorden.lineas, cortesia] : preorden.lineas
+        if (lineas.length) {
+          anticipoPedido = preorden.total.mul(cfg.anticipoPedidoPct).div(100).toDecimalPlaces(2)
+          await tx.pedido.create({
+            data: {
+              reservacionId: rv.id, origen: 'PREORDEN', estado: 'EN_ESPERA', total: preorden.total, anticipo: anticipoPedido,
+              notas: cortesia ? 'Incluye botella de cortesía (Sala Premium)' : null, items: { create: lineas },
+            },
+          })
         }
         if (d.mostrador)
           await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'SALA', metodo: d.mostrador.metodo, monto: subtotalSala, enLinea: false, registradoPorId: d.creadaPorId } })

@@ -14,7 +14,7 @@ HeidiSQL → MySQL (TCP/IP) · 127.0.0.1 · puerto 3307 · moonlight / moonlight
 Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, operaciones@, limpieza@ moonlight.mx
 
 ## Reglas de negocio implementadas
-- **Horario:** martes a sábado, 17:00 a 01:00 (tabla `horarios_operacion`). Los horarios de inicio van cada 30 min; duración de 1 a 4 h.
+- **Horario:** lunes a sábado, 12:00 a 02:00; domingo cerrado (tabla `horarios_operacion`, se define en `prisma/seed.ts`). Los horarios de inicio van cada 30 min; duración de 1 a 4 h.
 - **Limpieza:** cada reservación bloquea la sala 15 min después de terminar (`limpiezaMin`). Sala 18:00–19:00 → la siguiente puede iniciar a las 19:30 (rejilla de 30 min).
   Al cerrar la cuenta la sala pasa a `LIMPIEZA`; el rol LIMPIEZA la marca lista y vuelve a `ACTIVA`. No se hace check-in en una sala que no esté `ACTIVA`.
 - **Flujo del cliente (con cuenta):** explorar salas y horarios sin login → al reservar pide iniciar sesión/registrarse → paga en línea la **sala completa + 30% del pedido de alimentos/bebidas** (si lo hizo) → recibe su **número de reservación** (`ML` + 8 hex).
@@ -23,6 +23,7 @@ Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, o
 - **Pedido anticipado:** queda `EN_ESPERA`. Recepción cobra el 70% restante (efectivo/tarjeta) en `POST /api/staff/pedidos/:id/cobrar-saldo` y pasa a `PREPARANDO` (cola de barra).
 - **Tiempo extra:** solo si no hay reservación después; se paga en el establecimiento (`POST .../:id/extender`).
 - **Sin registro (mostrador):** `POST /api/staff/reservaciones/mostrador` (recepción/admin) con solo nombre; puede iniciar de inmediato si hay sala lista.
+- **Botella de cortesía (Sala Premium):** toda reservación Premium incluye una botella a elegir entre las de hasta `cortesiaTopePrecio` ($550: Bacardí Carta Blanca, Presidente Solera, Smirnoff No. 21). Se registra a $0 en el pedido anticipado y recepción la envía a barra tras el check-in. El tipo de sala y el tope se cambian en la tabla `configuracion`.
 - **Cierre de cuenta:** suma sala + extras + pedidos, promo 50% en alimentos del consumo en la 4ª visita del mes, y cobra lo que falte.
 - Pagos: solo EFECTIVO y TARJETA. El pago en línea está **simulado** (`PAGOS_SIMULADOS`).
 
@@ -37,7 +38,6 @@ El frontend vive en la carpeta hermana `../moonlight-front` (configurable con `F
 
 ## Por definir (valores configurables en la tabla `configuracion`)
 - `retencionTardiaPct` (30): % retenido si el cliente cancela con menos de 24 h. Hoy es un supuesto.
-- Horario del sábado: se asumió 17:00 a 01:00.
 - Precios por hora, temática de cada sala, fotos y descripciones (campos `fotoUrl`, `descripcion` listos para llenarse).
 
 ## Flujo de ramas (Git)

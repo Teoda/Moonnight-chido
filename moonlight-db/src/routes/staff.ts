@@ -50,6 +50,7 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
     telefono: z.string().transform(normTel).refine((t) => t === '' || t.length === 10, 'Teléfono de 10 dígitos').optional(),
     personas: z.number().int().min(1).max(16), tematicaId: z.number().int().optional(), salaNumero: z.number().int().optional(),
     duracionMin: z.number().int().min(30).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
+    cortesiaProductoId: z.number().int().positive().optional(),
   }).parse(req.body)
   const ahoraMin = new Date(Math.floor(Date.now() / MIN) * MIN)
   const iniciarAhora = !b.inicio
@@ -59,7 +60,7 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
   await validarSlot(prisma, inicio, fin, { mostrador: true })
   const tel = b.telefono || null
   const cliente = (tel && (await prisma.cliente.findUnique({ where: { telefono: tel } }))) || (await prisma.cliente.create({ data: { nombre: b.nombre, telefono: tel } }))
-  const x = await crearReservacion({ clienteId: cliente.id, personas: b.personas, tematicaId: b.tematicaId, salaNumero: b.salaNumero, inicio, fin, canal: 'MOSTRADOR', creadaPorId: yo(req).id, mostrador: { metodo: b.metodo, iniciarAhora } })
+  const x = await crearReservacion({ clienteId: cliente.id, personas: b.personas, tematicaId: b.tematicaId, salaNumero: b.salaNumero, inicio, fin, canal: 'MOSTRADOR', creadaPorId: yo(req).id, mostrador: { metodo: b.metodo, iniciarAhora }, cortesiaProductoId: b.cortesiaProductoId })
   res.status(201).json({ codigo: x.reservacion.codigo, sala: x.sala.numero, estado: x.reservacion.estado, cobrado: x.subtotalSala, inicio, fin })
 }))
 

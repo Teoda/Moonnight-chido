@@ -86,10 +86,10 @@ r.get('/reservaciones', ah(async (req, res) => {
 r.post('/reservaciones', limiterEscritura, ah(async (req, res) => {
   const b = z.object({
     personas: z.number().int().min(1).max(16), tematicaId: z.number().int().optional(), salaNumero: z.number().int().optional(),
-    inicio: z.coerce.date(), fin: z.coerce.date(), items: itemsZ.optional(),
+    inicio: z.coerce.date(), fin: z.coerce.date(), items: itemsZ.optional(), cortesiaProductoId: z.number().int().positive().optional(),
   }).parse(req.body)
   await validarSlot(prisma, b.inicio, b.fin)
-  const x = await crearReservacion({ clienteId: yo(req).id, personas: b.personas, tematicaId: b.tematicaId, salaNumero: b.salaNumero, inicio: b.inicio, fin: b.fin, canal: 'WEB', items: b.items })
+  const x = await crearReservacion({ clienteId: yo(req).id, personas: b.personas, tematicaId: b.tematicaId, salaNumero: b.salaNumero, inicio: b.inicio, fin: b.fin, canal: 'WEB', items: b.items, cortesiaProductoId: b.cortesiaProductoId })
   res.status(201).json({
     codigo: x.reservacion.codigo, sala: x.sala.numero, totalSala: x.subtotalSala, anticipoPedido: x.anticipoPedido,
     aPagarEnLinea: x.aPagarEnLinea, expiraEn: x.reservacion.expiraEn,

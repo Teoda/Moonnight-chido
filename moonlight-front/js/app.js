@@ -167,6 +167,7 @@ function pintarSalas() {
         : h('div.thumb', { class: `t-${slug(s.tematica)}` }, `#${s.numero}`),
       h('div.row.between', h('h3', { style: 'margin:0' }, s.tematica), h('span.badge.accent', s.tipo)),
       h('p.muted.small', s.descripcion || `Sala ${s.tipo.toLowerCase()} con temática ${s.tematica}.`),
+      conCortesia(st.catalogo?.tipos.find((t) => t.nombre === s.tipo)?.id) ? h('p.cortesia-tag', '🍾 Incluye botella de cortesía') : null,
       h('div.row.between',
         h('div', h('div.price', money(s.precioHora), h('small', ' /hora')), h('div.muted.small', `${s.capacidad} personas`)),
         s.disponibleParaReservar
@@ -203,6 +204,11 @@ function pintarMenu() {
     const seccion = h('section.carta-seccion', { id: `carta-${slug(g)}` }, h('h3.titulo-carta', g))
     if (g === 'Paquetes') {
       seccion.append(h('p.muted.small', 'Consumos sugeridos por tipo de sala. No incluyen la renta de la sala.'))
+      if (st.catalogo.cortesia?.botellas.length) {
+        const t = tipos.find((x) => x.id === st.catalogo.cortesia.tipoSalaId)
+        seccion.append(h('p.cortesia-tag', `🍾 Toda reservación de Sala ${t?.nombre || 'Premium'} incluye una botella de cortesía a elegir: `,
+          st.catalogo.cortesia.botellas.map((b) => nombreBotella(b.nombre)).join(', '), '.'))
+      }
       const grid = h('div.grid.cols-3')
       for (const t of tipos) {
         for (const p of menu.filter((x) => x.categoria === 'PAQUETE' && x.tipoSalaId === t.id)) {
@@ -236,6 +242,7 @@ function pintarTiposInicio() {
     h('div.thumb.foto', h('img', { src: FOTOS_TIPO[t.codigo] || '', alt: `Sala ${t.nombre}`, loading: 'lazy' }), h('span', t.nombre)),
     h('div.row.between', h('h3', { style: 'margin:0' }, `Sala ${t.nombre}`), h('span.badge.accent', `${t.capacidadMin}–${t.capacidadMax} personas`)),
     h('p.muted.small', t.descripcion || `Ideal para grupos de ${t.capacidadMin} a ${t.capacidadMax} personas.`),
+    conCortesia(t.id) ? h('p.cortesia-tag', '🍾 Incluye botella de cortesía a elegir') : null,
     h('div.row.between', h('div.price', money(t.precioHora), h('small', ' /hora')),
       h('a.btn.sm.primary', { href: '#salas', onclick: () => { $('#filtro-tipo').value = t.nombre } }, 'Ver salas')))))
 }
@@ -254,6 +261,7 @@ async function buscarHorarios() {
   st.busqueda = { fecha, personas, duracionMin, tematicaId: tematicaId ? Number(tematicaId) : undefined }
   st.slot = null
   st.menuSel?.recomendar(tipoPara(personas)?.id)
+  pintarCortesia()
   mostrarPasos()
   const box = clear($('#slots'))
   box.append(h('div.empty', h('span.spinner')))
@@ -281,6 +289,37 @@ async function buscarHorarios() {
   } catch (e) {
     clear(box).append(h('div.empty.err', e.message))
   }
+}
+
+/** ¿Este tipo de sala incluye botella de cortesía? */
+const conCortesia = (tipoId) => !!tipoId && st.catalogo?.cortesia?.tipoSalaId === tipoId && st.catalogo.cortesia.botellas.length > 0
+const nombreBotella = (n) => n.replace(' (botella)', '')
+
+/** Elección de la botella de cortesía (solo si el grupo cae en el tipo de sala que la incluye). */
+function pintarCortesia() {
+  const box = $('#cortesia-box')
+  const tipo = st.busqueda && tipoPara(st.busqueda.personas)
+  if (!conCortesia(tipo?.id)) { box.hidden = true; st.cortesia = null; return }
+  const { botellas } = st.catalogo.cortesia
+  if (!botellas.some((b) => b.id === st.cortesia)) st.cortesia = botellas[0].id
+  const chips = h('div.chips')
+  for (const b of botellas) {
+    chips.append(h('button.chip', {
+      type: 'button', class: b.id === st.cortesia ? 'selected' : '', 'aria-pressed': String(b.id === st.cortesia),
+      onclick: (e) => {
+        st.cortesia = b.id
+        $$('.chip', chips).forEach((c) => { c.classList.remove('selected'); c.setAttribute('aria-pressed', 'false') })
+        e.currentTarget.classList.add('selected'); e.currentTarget.setAttribute('aria-pressed', 'true')
+        pintarResumen()
+      },
+    }, nombreBotella(b.nombre)))
+  }
+  box.hidden = false
+  append(clear(box), [
+    h('div.row.between', h('h3', { style: 'margin:0' }, '🍾 Botella de cortesía'), h('span.row', { style: 'gap:6px' }, h('span.badge.ok', 'Incluida con tu Sala ' + tipo.nombre), mas18())),
+    h('p.muted.small', 'Elige una. Te la llevamos a la sala cuando llegues.'),
+    chips,
+  ])
 }
 
 function mostrarPasos() {
@@ -313,6 +352,7 @@ function pintarResumen() {
     fila('Personas', b.personas),
     fila('Sala', tipo ? `${tipo.nombre}${tema ? ' · ' + tema.nombre : ''}` : 'Sin sala para ese grupo'),
     fila(`Sala (${durTxt(b.duracionMin)})`, money(sala)),
+    st.cortesia ? fila(`🍾 ${nombreBotella(st.catalogo.cortesia.botellas.find((x) => x.id === st.cortesia)?.nombre || '')}`, 'Cortesía') : null,
     pedido ? fila('Pedido anticipado', money(pedido)) : null,
     pedido ? fila(`Anticipo ${st.catalogo.reglas.anticipoPedidoPct}%`, money(anticipo)) : null,
     h('dt.total', 'A pagar en línea'), totalDd,
@@ -330,6 +370,7 @@ async function reservar(btn) {
     fin: new Date(new Date(st.slot).getTime() + b.duracionMin * 6e4).toISOString(),
     ...(b.tematicaId ? { tematicaId: b.tematicaId } : {}),
     ...(items.length ? { items } : {}),
+    ...(st.cortesia ? { cortesiaProductoId: st.cortesia } : {}),
   }
   const r = await accion(btn, () => api.post('/api/cliente/reservaciones', body))
   if (!r) return buscarHorarios() // el horario pudo ocuparse: refrescamos
@@ -555,7 +596,7 @@ function tarjetaReservacion(r) {
     lineaViva(r),
     r.tiempoPerdidoMin ? h('p.small.muted', `Llegaste ${r.retrasoMin} min tarde; se perdieron ${r.tiempoPerdidoMin} min.`) : null,
     pedidos.length ? h('div.small', pedidos.map((p) => h('div.row', { style: 'margin-bottom:6px' }, badgeVivo(p.estado),
-      h('span.muted', p.items.map((i) => `${i.cantidad}× ${i.producto.nombre}`).join(', '))))) : null,
+      h('span.muted', p.items.map(lineaItem).join(', '))))) : null,
     acciones.childNodes.length ? h('div', { style: 'margin-top:12px' }, acciones) : null,
   )
 }

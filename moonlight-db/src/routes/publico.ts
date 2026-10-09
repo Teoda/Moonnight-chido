@@ -3,7 +3,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../db'
 import { ah } from '../util'
-import { getConfig, horariosDisponibles } from '../disponibilidad'
+import { getConfig, horariosDisponibles, botellasCortesia } from '../disponibilidad'
 
 const r = Router()
 
@@ -12,7 +12,10 @@ r.get('/catalogo', ah(async (_req, res) => {
     prisma.tipoSala.findMany(), prisma.tematica.findMany(), prisma.productoMenu.findMany({ where: { activo: true }, orderBy: { orden: 'asc' } }),
     prisma.horarioOperacion.findMany({ where: { activo: true }, orderBy: { diaSemana: 'asc' } }), getConfig(prisma),
   ])
-  res.json({ tipos, tematicas, menu, horarios, reglas: { limpiezaMin: cfg.limpiezaMin, pasoMin: cfg.pasoMin, anticipoPedidoPct: cfg.anticipoPedidoPct, horasCancelacion: cfg.horasCancelacion, toleranciaMin: cfg.toleranciaMin } })
+  // Botella de cortesía: qué tipo de sala la incluye y entre qué botellas se elige
+  const tipoCortesia = tipos.find((t) => t.codigo === cfg.cortesiaTipo)
+  const cortesia = tipoCortesia ? { tipoSalaId: tipoCortesia.id, botellas: await botellasCortesia(prisma, cfg.cortesiaTopePrecio) } : null
+  res.json({ tipos, tematicas, menu, horarios, cortesia, reglas: { limpiezaMin: cfg.limpiezaMin, pasoMin: cfg.pasoMin, anticipoPedidoPct: cfg.anticipoPedidoPct, horasCancelacion: cfg.horasCancelacion, toleranciaMin: cfg.toleranciaMin } })
 }))
 
 r.get('/salas', ah(async (_req, res) => {

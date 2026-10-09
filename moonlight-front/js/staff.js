@@ -188,7 +188,7 @@ function detalleReservacion(rv) {
       h('thead', h('tr', ['Tipo', 'Método', 'Monto', 'Estado'].map((t) => h('th', t)))),
       h('tbody', rv.pagos.map((p) => h('tr', h('td', p.tipo.replace(/_/g, ' ').toLowerCase()), h('td', p.metodo.toLowerCase() + (p.enLinea ? ' (en línea)' : '')), h('td', money(p.monto)), h('td', p.estado.toLowerCase()))))))) : null,
     rv.pedidos.length ? h('div', h('h3', 'Pedidos'), rv.pedidos.map((p) => h('div.row', { style: 'margin-bottom:6px' },
-      badge(p.estado), h('span.small.muted', p.origen.replace('_', ' ')), h('span.small', p.items.map((i) => `${i.cantidad}× ${i.producto.nombre}`).join(', ')), h('b.small', money(p.total))))) : null,
+      badge(p.estado), h('span.small.muted', p.origen.replace('_', ' ')), h('span.small', p.items.map(lineaItem).join(', ')), h('b.small', money(p.total))))) : null,
     rv.extensiones.length ? h('p.small.muted', 'Tiempo extra: ' + rv.extensiones.map((x) => `${x.minutos} min (${money(x.monto)})`).join(', ')) : null,
     acciones.childNodes.length ? acciones : null,
   )
@@ -262,6 +262,17 @@ async function mostrador() {
   const inicio = h('input', { type: 'datetime-local', name: 'inicio', disabled: true })
   ahora.addEventListener('change', () => { inicio.disabled = ahora.checked })
   const metodo = metodoSelect(); metodo.name = 'metodo'
+  // Botella de cortesía: solo si el grupo cae en el tipo de sala que la incluye (Premium)
+  const cortesia = cat.cortesia
+  const botella = h('select', { name: 'cortesiaProductoId' }, (cortesia?.botellas || []).map((b) => h('option', { value: b.id }, b.nombre.replace(' (botella)', ''))))
+  const campoBotella = h('div.field', { hidden: true }, h('label', '🍾 Botella de cortesía (Sala Premium)'), botella)
+  const revisarCortesia = () => {
+    const n = Number(form.elements.personas.value)
+    const tipo = cat.tipos.find((t) => t.capacidadMin <= n && n <= t.capacidadMax)
+    const aplica = !!cortesia?.botellas.length && tipo?.id === cortesia.tipoSalaId
+    campoBotella.hidden = !aplica
+    botella.disabled = !aplica // deshabilitado = no se envía en el FormData
+  }
   const form = h('form',
     h('div.form-grid',
       h('div.field', h('label', 'Nombre'), h('input', { name: 'nombre', required: true, minLength: 2, maxLength: 120 })),
@@ -271,6 +282,7 @@ async function mostrador() {
       h('div.field', h('label', 'Temática'), h('select', { name: 'tematicaId' }, h('option', { value: '' }, 'Cualquiera'), cat.tematicas.map((t) => h('option', { value: t.id }, t.nombre)))),
       h('div.field', h('label', 'Sala # (opcional)'), h('input', { name: 'salaNumero', type: 'number', min: 1 })),
       h('div.field', h('label', 'Método de pago'), metodo),
+      campoBotella,
     ),
     h('div.field', h('label.check', ahora, 'Iniciar ahora (la sala debe estar lista)')),
     h('div.field', h('label', 'O programar para (hora de México)'), inicio),
@@ -285,6 +297,7 @@ async function mostrador() {
     if (f.get('telefono')) body.telefono = f.get('telefono')
     if (f.get('tematicaId')) body.tematicaId = Number(f.get('tematicaId'))
     if (f.get('salaNumero')) body.salaNumero = Number(f.get('salaNumero'))
+    if (f.get('cortesiaProductoId')) body.cortesiaProductoId = Number(f.get('cortesiaProductoId'))
     if (!ahora.checked) {
       if (!inicio.value) { err.textContent = 'Indica la fecha y hora de inicio'; return }
       body.inicio = new Date(`${inicio.value}:00-06:00`).toISOString()
@@ -297,6 +310,8 @@ async function mostrador() {
       buscar(r.codigo)
     } catch (x) { err.textContent = x.message } finally { ok.disabled = false }
   })
+  form.elements.personas.addEventListener('input', revisarCortesia)
+  revisarCortesia()
   m = modal('Reservación de mostrador', form, [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Volver'), ok])
 }
 
@@ -308,14 +323,14 @@ async function cargarPorCobrar() {
     if (!ps.length) return box.append(h('p.muted.small', 'Nada pendiente.'))
     for (const p of ps) {
       const metodo = metodoSelect()
-      const btn = h('button.btn.sm.primary', { type: 'button', disabled: p.reservacion.estado !== 'EN_CURSO', title: p.reservacion.estado !== 'EN_CURSO' ? 'Haz el check-in primero' : '' }, `Cobrar ${money(p.restante)}`)
+      const btn = h('button.btn.sm.primary', { type: 'button', disabled: p.reservacion.estado !== 'EN_CURSO', title: p.reservacion.estado !== 'EN_CURSO' ? 'Haz el check-in primero' : '' }, Number(p.restante) > 0 ? `Cobrar ${money(p.restante)}` : 'Enviar a barra')
       btn.addEventListener('click', async () => {
         const r = await accion(btn, () => api.post(`/api/staff/pedidos/${p.id}/cobrar-saldo`, { metodo: metodo.value }))
         if (r) { toast('Cobrado: el pedido pasó a barra', 'ok'); cargarPorCobrar(); if (st.codigo === p.reservacion.codigo) buscar(p.reservacion.codigo) }
       })
       box.append(h('div', { style: 'padding:10px 0;border-bottom:1px solid var(--line)' },
         h('div.row.between', h('a', { href: '#', onclick: (e) => { e.preventDefault(); buscar(p.reservacion.codigo) } }, p.reservacion.codigo), h('span.small.muted', `Sala ${p.reservacion.sala.numero}`), badge(p.reservacion.estado)),
-        h('p.small', { style: 'margin:6px 0' }, p.items.map((i) => `${i.cantidad}× ${i.producto.nombre}`).join(', ')),
+        h('p.small', { style: 'margin:6px 0' }, p.items.map(lineaItem).join(', ')),
         h('div.row', metodo, btn)))
       metodo.style.width = 'auto'
     }
@@ -375,7 +390,7 @@ async function cargarBarra(forzar = true) {
         h('div.row.between', h('h3', { style: 'margin:0' }, `Sala ${p.reservacion.sala.numero}`), badge(p.estado)),
         h('div.small.muted', `${p.reservacion.codigo} · ${p.origen.replace('_', ' ').toLowerCase()}`),
         h('div', espera),
-        h('ul', p.items.map((i) => h('li', h('b', `${i.cantidad}× `), i.producto.nombre))),
+        h('ul', p.items.map((i) => h('li', h('b', `${i.cantidad}× `), i.producto.nombre, esCortesia(i) ? h('span.badge.ok', { style: 'margin-left:6px' }, 'Cortesía') : null))),
         h('div.row',
           p.estado === 'NUEVO' ? h('button.btn.sm', { type: 'button', onclick: cambiar('PREPARANDO') }, 'Preparar') : null,
           h('button.btn.sm.ok', { type: 'button', onclick: cambiar('ENTREGADO') }, 'Entregado'),
