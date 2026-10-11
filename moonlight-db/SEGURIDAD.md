@@ -30,5 +30,6 @@
 
 ## Límites conocidos
 - El límite de peticiones vive en memoria: con varias instancias del servidor se necesita un almacén compartido (Redis).
+- El personal con sesión no cuenta para el límite general (las tabletas del local comparten IP y se actualizan solas); solo aplica el tope anti-inundación de 3000 peticiones / 15 min por IP.
 - El bloqueo por cuenta puede usarse para molestar a un usuario real (15 min); es el costo de frenar la fuerza bruta.
 - Si el dispositivo del usuario tiene malware, ninguna cookie lo salva.

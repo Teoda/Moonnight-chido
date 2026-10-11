@@ -3,14 +3,14 @@
 ## Arranque local
 1. `npm install`
 2. Copia `.env.example` a `.env` (en Windows: `copy .env.example .env`)
-3. `npm run db:up`                          (MySQL en Docker, puerto 3307)
-4. `npx prisma migrate dev --name inicial`  (crea las tablas)
+3. `npm run db:up`                          (MySQL en Docker, puerto 3309)
+4. `npx prisma migrate dev`                 (crea las tablas)
 5. `npm run db:seed`                        (salas, menú, promos, horario, configuración, usuarios de prueba)
 6. `npm run dev`                            (API en http://localhost:3000)
 
 > Si ya habías hecho migraciones con la versión anterior del esquema: `npm run db:reset` (borra datos de prueba y recrea todo).
 
-HeidiSQL → MySQL (TCP/IP) · 127.0.0.1 · puerto 3307 · moonlight / moonlight_pass · base moonlight
+HeidiSQL → MySQL (TCP/IP) · 127.0.0.1 · puerto 3309 · moonlight / moonlight_pass · base moonlight
 Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, operaciones@, limpieza@ moonlight.mx
 
 ## Reglas de negocio implementadas
@@ -18,7 +18,7 @@ Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, o
 - **Limpieza:** cada reservación bloquea la sala 15 min después de terminar (`limpiezaMin`). Sala 18:00–19:00 → la siguiente puede iniciar a las 19:30 (rejilla de 30 min).
   Al cerrar la cuenta la sala pasa a `LIMPIEZA`; el rol LIMPIEZA la marca lista y vuelve a `ACTIVA`. No se hace check-in en una sala que no esté `ACTIVA`.
 - **Flujo del cliente (con cuenta):** explorar salas y horarios sin login → al reservar pide iniciar sesión/registrarse → paga en línea la **sala completa + 30% del pedido de alimentos/bebidas** (si lo hizo) → recibe su **número de reservación** (`ML` + 8 hex).
-- **Ingreso:** el cliente da su número en recepción → `GET /api/staff/reservaciones/buscar/:codigo` → `POST .../:id/check-in`.
+- **Ingreso:** el cliente da su número en recepción → `GET /api/staff/reservaciones/buscar/:codigo` → `POST .../:id/check-in`. Puede entrar hasta 15 min antes (`ingresoAnticipadoMin`) si la sala está lista y ya no la ocupa la reservación anterior; el fin no cambia.
 - **Retraso:** si llega tarde y no hay otra reservación después (limpieza incluida), el fin se recorre; si no hay espacio, ese tiempo se pierde. Pasados 10 min (`toleranciaLlegadaMin`) es **no-show** (automático, cada minuto) y no se reembolsa.
 - **Pedido anticipado:** queda `EN_ESPERA`. Recepción cobra el 70% restante (efectivo/tarjeta) en `POST /api/staff/pedidos/:id/cobrar-saldo` y pasa a `PREPARANDO` (cola de barra).
 - **Tiempo extra:** solo si no hay reservación después; se paga en el establecimiento (`POST .../:id/extender`).
@@ -31,6 +31,7 @@ Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, o
 ## Rutas
 `/api/publico/*` (sin login: catálogo, salas, disponibilidad) · `/api/cliente/*` (registro, login, mis reservaciones) · `/api/auth/*` (login del personal) · `/api/staff/*` (por rol).
 El frontend vive en la carpeta hermana `../moonlight-front` (configurable con `FRONTEND_DIR`). Lee SEGURIDAD.md antes de subir al dominio.
+La CLI de Prisma se configura en `prisma.config.ts` (ruta del esquema, migraciones y seed).
 
 ## Frontend (`../moonlight-front`, lo sirve Express en el mismo origen)
 - `http://localhost:3000/` → sitio de clientes: salas, menú, reservar (horario → pedido anticipado → pago simulado → número de reservación) y "Mis reservaciones" (pagar, cancelar, reagendar, pedir a la sala).
@@ -39,7 +40,7 @@ El frontend vive en la carpeta hermana `../moonlight-front` (configurable con `F
 
 ## Por definir (valores configurables en la tabla `configuracion`)
 - `retencionTardiaPct` (30): % retenido si el cliente cancela con menos de 24 h. Hoy es un supuesto.
-- Precios por hora, temática de cada sala, fotos y descripciones (campos `fotoUrl`, `descripcion` listos para llenarse).
+- Precios por hora (tabla `tipos_sala`) y descripciones de cada sala (campo `descripcion`). Las fotos ya están por tipo de sala.
 
 ## Flujo de ramas (Git)
 - `main` = producción (lo que está publicado en el dominio). Nadie trabaja directo aquí.
