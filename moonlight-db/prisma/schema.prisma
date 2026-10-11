@@ -98,13 +98,13 @@ enum EstadoLimpieza {
 
 // ───────────── CATÁLOGOS Y SALAS ─────────────
 model TipoSala {
-  id           Int     @id @default(autoincrement())
-  codigo       String  @unique @db.VarChar(10)
-  nombre       String  @db.VarChar(50)
+  id           Int            @id @default(autoincrement())
+  codigo       String         @unique @db.VarChar(10)
+  nombre       String         @db.VarChar(50)
   capacidadMin Int
   capacidadMax Int
-  precioHora   Decimal @db.Decimal(10, 2)
-  descripcion  String? @db.VarChar(255)
+  precioHora   Decimal        @db.Decimal(10, 2)
+  descripcion  String?        @db.VarChar(255)
   salas        Sala[]
   paquetes     ProductoMenu[]
 
@@ -112,7 +112,6 @@ model TipoSala {
 }
 
 // Temática = género musical que elige el cliente al reservar (la sala se ambienta con esa elección).
-// Las salas ya no tienen una temática fija.
 model Tematica {
   id            Int           @id @default(autoincrement())
   nombre        String        @unique @db.VarChar(50)
@@ -120,7 +119,6 @@ model Tematica {
   fotoUrl       String?       @db.VarChar(255)
   activo        Boolean       @default(true)
   orden         Int           @default(0)
-  salas         Sala[]
   reservaciones Reservacion[]
 
   @@map("tematicas")
@@ -130,17 +128,15 @@ model Sala {
   id            Int           @id @default(autoincrement())
   numero        Int           @unique
   tipoSalaId    Int
-  tematicaId    Int? // ya no se usa: la temática la elige el cliente en cada reservación
   estado        EstadoSala    @default(ACTIVA)
   descripcion   String?       @db.VarChar(255) // pendiente: contenido real
   fotoUrl       String?       @db.VarChar(255) // pendiente: fotos reales
   tipoSala      TipoSala      @relation(fields: [tipoSalaId], references: [id])
-  tematica      Tematica?     @relation(fields: [tematicaId], references: [id])
   reservaciones Reservacion[]
   incidencias   Incidencia[]
   limpiezas     Limpieza[]
 
-  @@index([tipoSalaId, tematicaId])
+  @@index([tipoSalaId])
   @@map("salas")
 }
 
