@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moonlight · Karaoke &amp; Social Lounge</title>
+  <meta name="description" content="Moonlight Karaoke & Social Lounge: reserva tu sala de karaoke, salas temáticas, horarios en línea y pedido anticipado de alimentos y bebidas.">
+  <meta name="theme-color" content="#07060e">
+  <meta property="og:title" content="Moonlight · Karaoke & Social Lounge">
+  <meta property="og:image" content="/img/logo.jpg">
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Poppins:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/fx.css">
+  <script src="/js/common.js" defer></script>
+  <script src="/js/fx.js" defer></script>
+  <script src="/js/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="#inicio"><img class="logo-img isotipo" src="/img/isotipo.jpg" alt="" width="42" height="42">Moonlight</a>
+      <nav class="nav" aria-label="Principal">
+        <a href="#inicio" data-view="inicio">Inicio</a>
+        <a href="#salas" data-view="salas">Salas</a>
+        <a href="#menu" data-view="menu">Menú</a>
+        <a href="#reservar" data-view="reservar">Reservar</a>
+        <a href="#mis-reservaciones" data-view="mis-reservaciones" id="nav-mis" hidden>Mis reservaciones</a>
+      </nav>
+      <div class="userbox" id="userbox"></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- INICIO -->
+    <section class="view" id="view-inicio">
+      <div class="hero">
+        <div>
+          <div class="eyebrow"><span class="dot" aria-hidden="true"></span>Esta noche suena <b id="rotador">Pop</b><span class="caret" aria-hidden="true"></span></div>
+          <h1>Canta bajo la luz de <span>Moonlight</span></h1>
+          <p class="tagline">Karaoke &amp; Social Lounge</p>
+          <p>Salas privadas de karaoke ambientadas con la música que tú eliges: regional, reguetón, pop, banda, rock, K-Pop y más. Escoge el tamaño de tu sala, tu horario y llega a cantar.</p>
+          <div class="row">
+            <a class="btn primary lg" href="#reservar">Reservar sala</a>
+            <a class="btn lg" href="#salas">Ver salas</a>
+          </div>
+          <div class="facts" id="facts"></div>
+        </div>
+        <div class="escena">
+          <img class="logo-img logo-hero" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607">
+          <div class="notas" aria-hidden="true"><span>♪</span><span>♫</span><span>♪</span><span>♬</span></div>
+          <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <div class="grid cols-auto">
+        <div class="card"><h3>1 · Elige</h3><p class="muted">El tamaño de tu sala, el horario y tu música: un género o tu propia lista de artistas y canciones.</p></div>
+        <div class="card"><h3>2 · Paga en línea</h3><p class="muted" id="txt-pago">La sala completa y, si quieres, un anticipo de tu pedido de alimentos y bebidas.</p></div>
+        <div class="card"><h3>3 · Llega y canta</h3><p class="muted">Da tu número de reservación en recepción. Tienes unos minutos de tolerancia.</p></div>
+      </div>
+
+      <div class="row between" style="margin-top:44px"><h2 style="margin:0">Elige tu sala</h2><a href="#menu" class="btn sm">Ver la carta →</a></div>
+      <div class="grid cols-auto" id="tipos-inicio" style="margin-top:16px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </section>
+
+    <!-- SALAS -->
+    <section class="view" id="view-salas" hidden>
+      <div class="row between">
+        <h2>Nuestras salas</h2>
+        <div class="row">
+          <select id="filtro-tipo" aria-label="Filtrar por tamaño"><option value="">Todos los tamaños</option></select>
+        </div>
+      </div>
+      <p class="muted" id="tipos-resumen"></p>
+      <div class="grid cols-3" id="lista-salas"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    </section>
+
+    <!-- MENÚ -->
+    <section class="view" id="view-menu" hidden>
+      <h2>Carta</h2>
+      <p class="muted">Pide por adelantado al reservar o desde tu sala durante la visita. Precios en pesos mexicanos (MXN).</p>
+      <div class="chips" id="menu-nav" style="margin-bottom:8px"></div>
+      <div id="lista-menu"></div>
+      <p class="aviso-alcohol"><b>+18</b> Venta de bebidas alcohólicas exclusivamente a mayores de edad. Se solicitará identificación oficial.</p>
+    </section>
+
+    <!-- RESERVAR -->
+    <section class="view" id="view-reservar" hidden>
+      <h2>Reservar</h2>
+      <div class="steps" id="steps">
+        <span class="s on" data-step="1">1. Sala y horario</span>
+        <span class="s" data-step="2">2. Tu música</span>
+        <span class="s" data-step="3">3. Alimentos y bebidas</span>
+        <span class="s" data-step="4">4. Confirmar y pagar</span>
+      </div>
+      <div class="barra-pasos" aria-hidden="true"><div id="barra-pasos"></div></div>
+      <div class="layout-2">
+        <div class="stack">
+          <div class="card" id="paso-1">
+            <h3>Elige el tamaño de tu sala</h3>
+            <div class="tamanos" id="f-tipos" role="radiogroup" aria-label="Tamaño de la sala"></div>
+            <form id="form-buscar" class="form-grid">
+              <div class="field"><label for="f-fecha">Fecha</label><input type="date" id="f-fecha" required></div>
+              <div class="field"><label for="f-personas">Personas</label><input type="number" id="f-personas" min="1" max="16" value="4" required></div>
+              <div class="field"><label for="f-duracion">Duración</label><select id="f-duracion"></select></div>
+            </form>
+            <div class="row"><button class="btn primary" form="form-buscar" type="submit">Buscar horarios</button><span class="muted small" id="horario-dia"></span></div>
+            <div id="slots" style="margin-top:16px"></div>
+          </div>
+
+          <div class="card" id="paso-musica" hidden>
+            <div class="row between"><h3 style="margin:0">🎤 ¿Qué quieres cantar?</h3><span class="muted small">La sala se ambienta con tu elección</span></div>
+            <p class="muted small">Elige un género o arma tu propia lista con al menos 3 artistas.</p>
+            <div class="chips generos" id="f-generos" role="radiogroup" aria-label="Género musical"></div>
+            <div class="musica-extra">
+              <label id="lbl-artistas">Tus artistas favoritos <span class="muted" id="req-artistas">(opcional; si los escribes, mínimo 3)</span></label>
+              <div class="artistas" id="f-artistas"></div>
+              <button class="btn sm ghost" type="button" id="btn-mas-artista">+ Otro artista</button>
+              <div class="field" style="margin-top:12px">
+                <label for="f-canciones">Canciones que quieres cantar <span class="muted">(opcional, una por línea)</span></label>
+                <textarea id="f-canciones" rows="3" maxlength="2400" placeholder="Ej. Ella baila sola&#10;Tusa&#10;Bohemian Rhapsody"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="paso-2" hidden>
+            <div class="cortesia" id="cortesia-box" hidden></div>
+            <div class="row between"><h3>¿Quieres pedir por adelantado?</h3><span class="muted small" id="txt-anticipo"></span></div>
+            <div id="menu-reserva"></div>
+          </div>
+
+          <div class="card" id="paso-3" hidden>
+            <h3>Confirmar</h3>
+            <p class="muted small" id="txt-politicas"></p>
+            <div class="row">
+              <button class="btn" id="btn-atras" type="button">Cambiar horario</button>
+              <button class="btn primary lg" id="btn-reservar" type="button">Reservar y pagar</button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="card summary" aria-label="Resumen">
+          <h3>Resumen</h3>
+          <dl id="resumen"></dl>
+        </aside>
+      </div>
+    </section>
+
+    <!-- MIS RESERVACIONES -->
+    <section class="view" id="view-mis-reservaciones" hidden>
+      <div class="row between">
+        <h2>Mis reservaciones</h2>
+        <div class="row"><span class="actualizado" id="mis-actualizado"></span><button class="btn sm" id="btn-recargar" type="button">Actualizar</button></div>
+      </div>
+      <div class="grid cols-2" id="lista-mis"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap row between">
+      <span>© Moonlight · <span class="tagline">Karaoke &amp; Social Lounge</span></span>
+      <span id="footer-horario"></span>
+      <a href="/staff.html">Acceso del personal</a>
+    </div>
+  </footer>
+</body>
+</html>

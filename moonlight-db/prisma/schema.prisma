@@ -1,0 +1,457 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── ENUMS ─────────────
+enum Rol {
+  ADMIN
+  OPERACIONES
+  FINANZAS
+  RECEPCION
+  BARRA
+  MARKETING
+  LIMPIEZA
+}
+
+enum EstadoSala {
+  ACTIVA
+  LIMPIEZA
+  MANTENIMIENTO
+}
+
+enum EstadoReservacion {
+  PENDIENTE_PAGO
+  CONFIRMADA
+  EN_CURSO
+  FINALIZADA
+  CANCELADA
+  NO_SHOW
+}
+
+enum CanalReserva {
+  WEB
+  MOSTRADOR
+}
+
+enum TipoPago {
+  SALA
+  ANTICIPO_PEDIDO
+  SALDO_PEDIDO
+  TIEMPO_EXTRA
+  CONSUMO
+  REEMBOLSO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+  REEMBOLSADO
+  FALLIDO
+}
+
+enum CategoriaProducto {
+  ALIMENTO
+  BEBIDA
+  PAQUETE
+}
+
+enum EstadoPedido {
+  EN_ESPERA
+  NUEVO
+  PREPARANDO
+  ENTREGADO
+  CANCELADO
+}
+
+enum OrigenPedido {
+  PREORDEN
+  QR_SALA
+  MOSTRADOR
+}
+
+enum TipoPromocion {
+  DESCUENTO_ALIMENTOS
+  HAPPY_HOUR
+}
+
+enum EstadoIncidencia {
+  ABIERTA
+  EN_PROCESO
+  RESUELTA
+}
+
+enum EstadoLimpieza {
+  PENDIENTE
+  EN_PROCESO
+  LISTA
+}
+
+// ───────────── CATÁLOGOS Y SALAS ─────────────
+model TipoSala {
+  id           Int     @id @default(autoincrement())
+  codigo       String  @unique @db.VarChar(10)
+  nombre       String  @db.VarChar(50)
+  capacidadMin Int
+  capacidadMax Int
+  precioHora   Decimal @db.Decimal(10, 2)
+  descripcion  String? @db.VarChar(255)
+  salas        Sala[]
+  paquetes     ProductoMenu[]
+
+  @@map("tipos_sala")
+}
+
+// Temática = género musical que elige el cliente al reservar (la sala se ambienta con esa elección).
+// Las salas ya no tienen una temática fija.
+model Tematica {
+  id            Int           @id @default(autoincrement())
+  nombre        String        @unique @db.VarChar(50)
+  descripcion   String?       @db.VarChar(255)
+  fotoUrl       String?       @db.VarChar(255)
+  activo        Boolean       @default(true)
+  orden         Int           @default(0)
+  salas         Sala[]
+  reservaciones Reservacion[]
+
+  @@map("tematicas")
+}
+
+model Sala {
+  id            Int           @id @default(autoincrement())
+  numero        Int           @unique
+  tipoSalaId    Int
+  tematicaId    Int? // ya no se usa: la temática la elige el cliente en cada reservación
+  estado        EstadoSala    @default(ACTIVA)
+  descripcion   String?       @db.VarChar(255) // pendiente: contenido real
+  fotoUrl       String?       @db.VarChar(255) // pendiente: fotos reales
+  tipoSala      TipoSala      @relation(fields: [tipoSalaId], references: [id])
+  tematica      Tematica?     @relation(fields: [tematicaId], references: [id])
+  reservaciones Reservacion[]
+  incidencias   Incidencia[]
+  limpiezas     Limpieza[]
+
+  @@index([tipoSalaId, tematicaId])
+  @@map("salas")
+}
+
+// Días y horas de operación. cierra <= abre significa que cierra de madrugada del día siguiente.
+model HorarioOperacion {
+  id        Int     @id @default(autoincrement())
+  diaSemana Int     @unique // 0 = domingo ... 6 = sábado
+  abre      String  @db.VarChar(5)
+  cierra    String  @db.VarChar(5)
+  activo    Boolean @default(true)
+
+  @@map("horarios_operacion")
+}
+
+// ───────────── PERSONAS ─────────────
+// Cliente con cuenta: email + passwordHash. Cliente de mostrador: sin email ni contraseña.
+model Cliente {
+  id               Int           @id @default(autoincrement())
+  nombre           String        @db.VarChar(120)
+  telefono         String?       @unique @db.VarChar(20)
+  email            String?       @unique @db.VarChar(150)
+  passwordHash     String?       @db.VarChar(100)
+  aceptaPromos     Boolean       @default(false)
+  intentosFallidos Int           @default(0)
+  bloqueadoHasta   DateTime?
+  creadoEn         DateTime      @default(now())
+  reservaciones    Reservacion[]
+  sesiones         Sesion[]
+
+  @@map("clientes")
+}
+
+model Usuario {
+  id               Int           @id @default(autoincrement())
+  nombre           String        @db.VarChar(120)
+  email            String        @unique @db.VarChar(150)
+  passwordHash     String        @db.VarChar(100)
+  rol              Rol
+  activo           Boolean       @default(true)
+  intentosFallidos Int           @default(0)
+  bloqueadoHasta   DateTime?
+  creadoEn         DateTime      @default(now())
+  reservaciones    Reservacion[]
+  pedidos          Pedido[]
+  limpiezas        Limpieza[]
+  sesiones         Sesion[]
+
+  @@map("usuarios")
+}
+
+// Sesiones del lado del servidor (personal o cliente). Se guarda solo el hash SHA-256 del token.
+model Sesion {
+  id              String   @id @db.Char(64)
+  usuarioId       Int?
+  clienteId       Int?
+  creadaEn        DateTime @default(now())
+  ultimaActividad DateTime @default(now())
+  expiraEn        DateTime
+  ip              String?  @db.VarChar(45)
+  userAgent       String?  @db.VarChar(255)
+  usuario         Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cliente         Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([clienteId])
+  @@index([expiraEn])
+  @@map("sesiones")
+}
+
+// ───────────── PROMOCIONES ─────────────
+model Promocion {
+  id                Int           @id @default(autoincrement())
+  nombre            String        @db.VarChar(100)
+  tipo              TipoPromocion
+  porcentaje        Decimal       @db.Decimal(5, 2)
+  visitasRequeridas Int?
+  horaInicio        String?       @db.VarChar(5)
+  horaFin           String?       @db.VarChar(5)
+  diasSemana        String?       @db.VarChar(20)
+  activa            Boolean       @default(true)
+  vigenteDesde      DateTime?
+  vigenteHasta      DateTime?
+  reservaciones     Reservacion[]
+
+  @@map("promociones")
+}
+
+// ───────────── RESERVACIONES ─────────────
+// La sala se paga completa al reservar (web) o en mostrador. Bloquea la sala desde `inicio`
+// hasta `fin` + tiempo de limpieza (configuración `limpiezaMin`).
+model Reservacion {
+  id               Int               @id @default(autoincrement())
+  codigo           String            @unique @db.VarChar(10) // el "número de reservación" que se da en recepción
+  clienteId        Int
+  salaId           Int
+  inicio           DateTime
+  fin              DateTime
+  finOriginal      DateTime? // fin antes de recorrerse por retraso o ampliarse con tiempo extra
+  personas         Int
+  estado           EstadoReservacion @default(PENDIENTE_PAGO)
+  canal            CanalReserva      @default(WEB)
+  subtotalSala     Decimal           @db.Decimal(10, 2)
+  expiraEn         DateTime? // PENDIENTE_PAGO deja de bloquear la sala al vencer
+  retrasoMin       Int               @default(0)
+  tiempoPerdidoMin Int               @default(0)
+  promocionId      Int?
+  tematicaId       Int? // género musical elegido; null = "mi propia lista"
+  artistas         String?           @db.VarChar(1000) // artistas favoritos, uno por línea (mínimo 3 si se indican)
+  canciones        String?           @db.Text // canciones pedidas, una por línea
+  notas            String?           @db.Text
+  checkInEn        DateTime?
+  checkOutEn       DateTime?
+  creadaPorId      Int?
+  creadoEn         DateTime          @default(now())
+  actualizadoEn    DateTime          @updatedAt
+
+  cliente        Cliente        @relation(fields: [clienteId], references: [id])
+  sala           Sala           @relation(fields: [salaId], references: [id])
+  promocion      Promocion?     @relation(fields: [promocionId], references: [id])
+  tematica       Tematica?      @relation(fields: [tematicaId], references: [id])
+  creadaPor      Usuario?       @relation(fields: [creadaPorId], references: [id])
+  pagos          Pago[]
+  cancelacion    Cancelacion?
+  reagendaciones Reagendacion[]
+  extensiones    Extension[]
+  pedidos        Pedido[]
+  cuenta         Cuenta?
+  limpiezas      Limpieza[]
+
+  @@index([salaId, inicio, fin])
+  @@index([clienteId])
+  @@index([estado, inicio])
+  @@map("reservaciones")
+}
+
+model Pago {
+  id              Int         @id @default(autoincrement())
+  reservacionId   Int
+  pedidoId        Int?
+  tipo            TipoPago
+  metodo          MetodoPago
+  estado          EstadoPago  @default(PAGADO)
+  monto           Decimal     @db.Decimal(10, 2)
+  enLinea         Boolean     @default(false)
+  referencia      String?     @db.VarChar(100)
+  registradoPorId Int?
+  creadoEn        DateTime    @default(now())
+  reservacion     Reservacion @relation(fields: [reservacionId], references: [id])
+  pedido          Pedido?     @relation(fields: [pedidoId], references: [id])
+
+  @@index([reservacionId])
+  @@index([pedidoId])
+  @@map("pagos")
+}
+
+model Cancelacion {
+  id                Int         @id @default(autoincrement())
+  reservacionId     Int         @unique
+  motivo            String?     @db.VarChar(255)
+  horasAnticipacion Int
+  reembolso         Decimal     @db.Decimal(10, 2)
+  retenido          Decimal     @db.Decimal(10, 2)
+  creadoEn          DateTime    @default(now())
+  reservacion       Reservacion @relation(fields: [reservacionId], references: [id])
+
+  @@map("cancelaciones")
+}
+
+model Reagendacion {
+  id             Int         @id @default(autoincrement())
+  reservacionId  Int
+  inicioAnterior DateTime
+  finAnterior    DateTime
+  salaAnteriorId Int
+  inicioNuevo    DateTime
+  finNuevo       DateTime
+  salaNuevaId    Int
+  creadoEn       DateTime    @default(now())
+  reservacion    Reservacion @relation(fields: [reservacionId], references: [id])
+
+  @@index([reservacionId])
+  @@map("reagendaciones")
+}
+
+// Tiempo extra contratado en el establecimiento (solo si no hay reservación después).
+model Extension {
+  id            Int         @id @default(autoincrement())
+  reservacionId Int
+  minutos       Int
+  monto         Decimal     @db.Decimal(10, 2)
+  creadaPorId   Int?
+  creadoEn      DateTime    @default(now())
+  reservacion   Reservacion @relation(fields: [reservacionId], references: [id])
+
+  @@index([reservacionId])
+  @@map("extensiones")
+}
+
+model Cuenta {
+  id                         Int         @id @default(autoincrement())
+  reservacionId              Int         @unique
+  subtotalSala               Decimal     @db.Decimal(10, 2)
+  subtotalExtras             Decimal     @db.Decimal(10, 2)
+  subtotalPedidosAnticipados Decimal     @db.Decimal(10, 2)
+  subtotalConsumo            Decimal     @db.Decimal(10, 2)
+  descuento                  Decimal     @default(0) @db.Decimal(10, 2)
+  total                      Decimal     @db.Decimal(10, 2)
+  pagadoPrevio               Decimal     @db.Decimal(10, 2)
+  saldo                      Decimal     @db.Decimal(10, 2) // lo cobrado al cerrar
+  cerradaEn                  DateTime    @default(now())
+  cerradaPorId               Int?
+  reservacion                Reservacion @relation(fields: [reservacionId], references: [id])
+
+  @@map("cuentas")
+}
+
+// ───────────── ALIMENTOS Y BEBIDAS ─────────────
+// Carta: ALIMENTO (botanas), BEBIDA (botellas, refrescos, aguas) y PAQUETE (combos por tipo de sala).
+// La promo de la 4ª visita solo descuenta ALIMENTO.
+model ProductoMenu {
+  id          Int               @id @default(autoincrement())
+  nombre      String            @unique @db.VarChar(100)
+  categoria   CategoriaProducto
+  seccion     String            @default("Otros") @db.VarChar(50) // agrupa la carta: "Botellas · Tequila", "Botanas · Cacahuates"...
+  descripcion String?           @db.VarChar(500) // contenido de los paquetes (una línea por artículo)
+  precio      Decimal           @db.Decimal(10, 2)
+  alcohol     Boolean           @default(false) // venta solo a mayores de edad
+  orden       Int               @default(0)
+  tipoSalaId  Int? // paquete recomendado para ese tipo de sala
+  activo      Boolean           @default(true)
+  tipoSala    TipoSala?         @relation(fields: [tipoSalaId], references: [id])
+  items       PedidoItem[]
+
+  @@index([activo, orden])
+  @@map("productos_menu")
+}
+
+// PREORDEN: se pide al reservar; en línea se paga el 30% (anticipo), el resto se cobra en sucursal
+// y entonces pasa a PREPARANDO. QR_SALA y MOSTRADOR se cobran al cerrar la cuenta.
+model Pedido {
+  id            Int          @id @default(autoincrement())
+  reservacionId Int
+  origen        OrigenPedido @default(QR_SALA)
+  estado        EstadoPedido @default(NUEVO)
+  total         Decimal      @default(0) @db.Decimal(10, 2)
+  anticipo      Decimal      @default(0) @db.Decimal(10, 2)
+  saldoCobrado  Boolean      @default(false)
+  notas         String?      @db.VarChar(255)
+  creadoEn      DateTime     @default(now())
+  entregadoEn   DateTime?
+  atendidoPorId Int?
+  reservacion   Reservacion  @relation(fields: [reservacionId], references: [id])
+  atendidoPor   Usuario?     @relation(fields: [atendidoPorId], references: [id])
+  items         PedidoItem[]
+  pagos         Pago[]
+
+  @@index([estado, creadoEn])
+  @@index([reservacionId])
+  @@map("pedidos")
+}
+
+model PedidoItem {
+  id             Int          @id @default(autoincrement())
+  pedidoId       Int
+  productoId     Int
+  cantidad       Int
+  precioUnitario Decimal      @db.Decimal(10, 2)
+  pedido         Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  producto       ProductoMenu @relation(fields: [productoId], references: [id])
+
+  @@index([pedidoId])
+  @@index([productoId])
+  @@map("pedido_items")
+}
+
+// ───────────── OPERACIÓN Y CONFIGURACIÓN ─────────────
+model Limpieza {
+  id             Int            @id @default(autoincrement())
+  salaId         Int
+  reservacionId  Int?
+  estado         EstadoLimpieza @default(PENDIENTE)
+  creadaEn       DateTime       @default(now())
+  iniciadaEn     DateTime?
+  terminadaEn    DateTime?
+  realizadaPorId Int?
+  sala           Sala           @relation(fields: [salaId], references: [id])
+  reservacion    Reservacion?   @relation(fields: [reservacionId], references: [id])
+  realizadaPor   Usuario?       @relation(fields: [realizadaPorId], references: [id])
+
+  @@index([estado, creadaEn])
+  @@index([salaId])
+  @@index([reservacionId])
+  @@map("limpiezas")
+}
+
+model Incidencia {
+  id          Int              @id @default(autoincrement())
+  salaId      Int?
+  descripcion String           @db.Text
+  estado      EstadoIncidencia @default(ABIERTA)
+  reportadaEn DateTime         @default(now())
+  resueltaEn  DateTime?
+  sala        Sala?            @relation(fields: [salaId], references: [id])
+
+  @@index([salaId])
+  @@map("incidencias")
+}
+
+model Configuracion {
+  clave String @id @db.VarChar(50)
+  valor String @db.VarChar(255)
+
+  @@map("configuracion")
+}
