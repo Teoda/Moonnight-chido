@@ -14,6 +14,7 @@ export async function getConfig(db: Db) {
     limpiezaMin: n('limpiezaMin', 15), pasoMin: n('pasoMin', 30), durMin: n('duracionMinMin', 60), durMax: n('duracionMaxMin', 240),
     anticipoPedidoPct: n('anticipoPedidoPct', 30), horasCancelacion: n('horasCancelacionConReembolso', 24),
     retencionTardiaPct: n('retencionTardiaPct', 30), toleranciaMin: n('toleranciaLlegadaMin', 10),
+    ingresoAnticipadoMin: n('ingresoAnticipadoMin', 15), // check-in permitido hasta estos min antes del inicio
     vencePendienteMin: n('minutosVencimientoPendientePago', 30),
     cortesiaTipo: m.cortesiaTipoSala ?? 'PREMIUM',       // tipo de sala que incluye botella de cortesía
     cortesiaTopePrecio: n('cortesiaTopePrecio', 550),    // el cliente elige entre las botellas de hasta este precio

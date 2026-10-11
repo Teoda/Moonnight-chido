@@ -76,7 +76,7 @@ r.post('/cambiar-password', ah(async (req, res) => {
 
 const mia = async (req: Request, cod: string) => {
   const rv = await prisma.reservacion.findFirst({
-    where: { codigo: codigoZ.parse(cod), clienteId: yo(req).id }, include: { sala: { include: { tipoSala: true, tematica: true } } },
+    where: { codigo: codigoZ.parse(cod), clienteId: yo(req).id }, include: { sala: { include: { tipoSala: true } } },
   })
   if (!rv) throw new HttpError(404, 'Reservación no encontrada') // también si es de otro cliente
   return rv
@@ -110,12 +110,14 @@ r.post('/reservaciones/:codigo/pagar', ah(async (req, res) => {
   const rv = await mia(req, req.params.codigo)
   if (rv.estado !== 'PENDIENTE_PAGO' || !rv.expiraEn || rv.expiraEn < new Date()) throw new HttpError(409, 'La reservación venció o ya fue pagada')
   const pedido = await prisma.pedido.findFirst({ where: { reservacionId: rv.id, origen: 'PREORDEN', estado: 'EN_ESPERA' } })
-  const ops: Prisma.PrismaPromise<unknown>[] = [
-    prisma.pago.create({ data: { reservacionId: rv.id, tipo: 'SALA', metodo: 'TARJETA', monto: rv.subtotalSala, enLinea: true, referencia: 'SIM-' + rv.codigo } }),
-    prisma.reservacion.update({ where: { id: rv.id }, data: { estado: 'CONFIRMADA', expiraEn: null } }),
-  ]
-  if (pedido && pedido.anticipo.gt(0)) ops.push(prisma.pago.create({ data: { reservacionId: rv.id, pedidoId: pedido.id, tipo: 'ANTICIPO_PEDIDO', metodo: 'TARJETA', monto: pedido.anticipo, enLinea: true, referencia: 'SIM-' + rv.codigo } }))
-  await prisma.$transaction(ops)
+  await prisma.$transaction(async (tx) => {
+    // UPDATE condicional atómico: si llegan dos pagos a la vez, solo uno cambia la fila; el otro
+    // no registra pagos. (update() con filtros extra no sirve: Prisma en MySQL lee y luego actualiza por id.)
+    const x = await tx.reservacion.updateMany({ where: { id: rv.id, estado: 'PENDIENTE_PAGO', expiraEn: { gt: new Date() } }, data: { estado: 'CONFIRMADA', expiraEn: null } })
+    if (!x.count) throw new HttpError(409, 'La reservación venció o ya fue pagada')
+    await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'SALA', metodo: 'TARJETA', monto: rv.subtotalSala, enLinea: true, referencia: 'SIM-' + rv.codigo } })
+    if (pedido && pedido.anticipo.gt(0)) await tx.pago.create({ data: { reservacionId: rv.id, pedidoId: pedido.id, tipo: 'ANTICIPO_PEDIDO', metodo: 'TARJETA', monto: pedido.anticipo, enLinea: true, referencia: 'SIM-' + rv.codigo } })
+  })
   res.json({ ok: true, estado: 'CONFIRMADA' })
 }))
 
@@ -130,7 +132,8 @@ r.post('/reservaciones/:codigo/cancelar', ah(async (req, res) => {
   const retenido = pagado.gt(0) && horas < cfg.horasCancelacion ? pagado.mul(cfg.retencionTardiaPct).div(100).toDecimalPlaces(2) : D0()
   const reembolso = pagado.sub(retenido)
   await prisma.$transaction(async (tx) => {
-    await tx.reservacion.update({ where: { id: rv.id, estado: rv.estado }, data: { estado: 'CANCELADA' } })
+    const x = await tx.reservacion.updateMany({ where: { id: rv.id, estado: rv.estado }, data: { estado: 'CANCELADA' } }) // atómico: evita reembolsos dobles
+    if (!x.count) throw new HttpError(409, 'Esta reservación ya no se puede cancelar')
     await tx.pedido.updateMany({ where: { reservacionId: rv.id, estado: 'EN_ESPERA' }, data: { estado: 'CANCELADO' } })
     await tx.cancelacion.create({ data: { reservacionId: rv.id, motivo, horasAnticipacion: horas, reembolso, retenido } })
     if (reembolso.gt(0)) await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'REEMBOLSO', metodo: 'TARJETA', estado: 'REEMBOLSADO', monto: reembolso, enLinea: true, referencia: 'SIM-REEMBOLSO' } })

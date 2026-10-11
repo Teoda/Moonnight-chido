@@ -32,7 +32,7 @@ async function main() {
   ]
   for (const [numero, tipo] of plano) {
     const tipoSala = await prisma.tipoSala.findUniqueOrThrow({ where: { codigo: tipo } })
-    await prisma.sala.upsert({ where: { numero }, update: { tematicaId: null }, create: { numero, tipoSalaId: tipoSala.id } })
+    await prisma.sala.upsert({ where: { numero }, update: {}, create: { numero, tipoSalaId: tipoSala.id } })
   }
 
   // Fotos por tipo de sala (solo si la sala aún no tiene una propia)
@@ -79,6 +79,7 @@ async function main() {
     horasCancelacionConReembolso: '24',
     retencionTardiaPct: '30',             // % retenido si se cancela con menos de 24 h (por definir)
     toleranciaLlegadaMin: '10',           // pasados estos min sin llegar = no-show
+    ingresoAnticipadoMin: '15',           // check-in permitido hasta estos min antes (si la sala ya está libre)
     minutosVencimientoPendientePago: '30',
     cortesiaTipoSala: 'PREMIUM',           // tipo de sala que incluye botella de cortesía
     cortesiaTopePrecio: '550',            // el cliente elige entre las botellas de hasta este precio

@@ -35,7 +35,7 @@ r.get('/reservaciones/buscar/:codigo', RECEP, ah(async (req, res) => {
   const rv = await prisma.reservacion.findUnique({
     where: { codigo: codigoZ.parse(req.params.codigo) },
     include: {
-      cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { nombre: true } },
+      cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true, tipoSalaId: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { nombre: true } },
       pagos: true, extensiones: true, pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } },
     },
   })
@@ -51,7 +51,7 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
     personas: z.number().int().min(1).max(16), tipoSalaId: z.number().int().positive().optional(), salaNumero: z.number().int().optional(),
     tematicaId: z.number().int().positive().optional(), artistas: z.array(z.string().trim().max(80)).max(10).optional(),
     canciones: z.array(z.string().trim().max(120)).max(20).optional(),
-    duracionMin: z.number().int().min(30).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
+    duracionMin: z.number().int().min(60).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
     cortesiaProductoId: z.number().int().positive().optional(),
   }).parse(req.body)
   const ahoraMin = new Date(Math.floor(Date.now() / MIN) * MIN)
@@ -76,10 +76,13 @@ r.post('/reservaciones/:id/check-in', RECEP, ah(async (req, res) => {
   if (!rv || rv.estado !== 'CONFIRMADA') throw new HttpError(409, 'La reservación no está confirmada')
   const ahora = new Date()
   const falta = Math.ceil((rv.inicio.getTime() - ahora.getTime()) / MIN)
-  if (falta > 0) throw new HttpError(409, `Su horario inicia en ${falta} min`)
-  const retraso = Math.floor((ahora.getTime() - rv.inicio.getTime()) / MIN)
+  if (falta > cfg.ingresoAnticipadoMin) throw new HttpError(409, `Su horario inicia en ${falta} min (puede ingresar ${cfg.ingresoAnticipadoMin} min antes)`)
+  const retraso = Math.max(0, Math.floor((ahora.getTime() - rv.inicio.getTime()) / MIN))
   if (retraso > cfg.toleranciaMin) throw new HttpError(409, `Pasaron más de ${cfg.toleranciaMin} min de tolerancia: corresponde no-show`)
   if (rv.sala.estado !== 'ACTIVA') throw new HttpError(409, 'La sala aún no está lista (limpieza o mantenimiento)')
+  // Ingreso anticipado: solo si la sala ya quedó libre (el fin no cambia: los minutos de antes son cortesía)
+  if (falta > 0 && (await prisma.reservacion.count({ where: { salaId: rv.salaId, estado: 'EN_CURSO', id: { not: rv.id } } })))
+    throw new HttpError(409, 'La sala sigue ocupada por la reservación anterior')
 
   let finNuevo = rv.fin, perdidoMin = 0
   if (retraso > 0) {
@@ -108,10 +111,11 @@ r.post('/reservaciones/:id/no-show', RECEP, ah(async (req, res) => {
   const rv = await prisma.reservacion.findUnique({ where: { id: rid } })
   if (!rv || rv.estado !== 'CONFIRMADA') throw new HttpError(409, 'La reservación no está confirmada')
   if (Date.now() < rv.inicio.getTime() + cfg.toleranciaMin * MIN) throw new HttpError(409, `Aún no pasan los ${cfg.toleranciaMin} min de tolerancia`)
-  await prisma.$transaction([
-    prisma.reservacion.update({ where: { id: rid }, data: { estado: 'NO_SHOW' } }),
-    prisma.pedido.updateMany({ where: { reservacionId: rid, estado: 'EN_ESPERA' }, data: { estado: 'CANCELADO' } }),
-  ])
+  await prisma.$transaction(async (tx) => {
+    const x = await tx.reservacion.updateMany({ where: { id: rid, estado: 'CONFIRMADA' }, data: { estado: 'NO_SHOW' } }) // atómico: falla si ya hubo check-in
+    if (!x.count) throw new HttpError(409, 'La reservación ya fue procesada')
+    await tx.pedido.updateMany({ where: { reservacionId: rid, estado: 'EN_ESPERA' }, data: { estado: 'CANCELADO' } })
+  })
   res.json({ ok: true })
 }))
 
@@ -247,7 +251,7 @@ r.get('/salas', requireRol('OPERACIONES', 'RECEPCION', 'LIMPIEZA'), ah(async (_r
   res.json(await prisma.sala.findMany({
     orderBy: { numero: 'asc' },
     include: {
-      tipoSala: true, tematica: true,
+      tipoSala: true,
       reservaciones: { where: { estado: { in: ['CONFIRMADA', 'EN_CURSO'] }, fin: { gt: ahora }, inicio: { lt: new Date(ahora.getTime() + 24 * 36e5) } }, orderBy: { inicio: 'asc' }, take: 2, select: { codigo: true, estado: true, inicio: true, fin: true, artistas: true, tematica: { select: { nombre: true } } } },
     },
   }))

@@ -807,8 +807,7 @@ function reagendar(r) {
 function pedirEnSala(r) {
   let m
   const total = h('b', money(0))
-  const tipo = st.catalogo.tipos.find((t) => t.capacidadMin <= r.personas && r.personas <= t.capacidadMax)
-  const sel = selectorMenu(st.catalogo.menu, () => { total.textContent = money(sel.total()) }, { tipos: st.catalogo.tipos, tipoSalaId: tipo?.id })
+  const sel = selectorMenu(st.catalogo.menu, () => { total.textContent = money(sel.total()) }, { tipos: st.catalogo.tipos, tipoSalaId: r.sala.tipoSalaId })
   const enviar = h('button.btn.primary', { type: 'button' }, 'Enviar pedido')
   enviar.addEventListener('click', async () => {
     const items = sel.items()

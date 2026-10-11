@@ -113,7 +113,6 @@ async function salir(btn, todas) {
 function cambiarPassword() {
   let m
   const err = h('div.err')
-  const selTipo = h('select', { name: 'tipoSalaId' }, cat.tipos.map((t) => h('option', { value: t.id }, `${t.nombre} (hasta ${t.capacidadMax})`)))
   const form = h('form',
     h('div.field', h('label', { for: 'cp-a' }, 'Contraseña actual'), h('input#cp-a', { type: 'password', name: 'actual', required: true, autocomplete: 'current-password' })),
     h('div.field', h('label', { for: 'cp-n' }, 'Nueva (mín. 10, letras y números)'), h('input#cp-n', { type: 'password', name: 'nueva', required: true, minLength: 10, autocomplete: 'new-password' })),
@@ -224,8 +223,7 @@ async function pedidoStaff(rv, listo) {
   try { cat = await catalogo() } catch (e) { return toast(e.message, 'bad') }
   let m
   const total = h('b', money(0))
-  const tipo = cat.tipos.find((t) => t.capacidadMin <= rv.personas && rv.personas <= t.capacidadMax)
-  const sel = selectorMenu(cat.menu, () => { total.textContent = money(sel.total()) }, { tipos: cat.tipos, tipoSalaId: tipo?.id })
+  const sel = selectorMenu(cat.menu, () => { total.textContent = money(sel.total()) }, { tipos: cat.tipos, tipoSalaId: rv.sala.tipoSalaId })
   const ok = h('button.btn.primary', { type: 'button' }, 'Enviar a barra')
   ok.addEventListener('click', async () => {
     const items = sel.items()
@@ -271,6 +269,7 @@ async function mostrador() {
   const inicio = h('input', { type: 'datetime-local', name: 'inicio', disabled: true })
   ahora.addEventListener('change', () => { inicio.disabled = ahora.checked })
   const metodo = metodoSelect(); metodo.name = 'metodo'
+  const selTipo = h('select', { name: 'tipoSalaId' }, cat.tipos.map((t) => h('option', { value: t.id }, `${t.nombre} (hasta ${t.capacidadMax})`)))
   // Botella de cortesía: solo si el grupo cae en el tipo de sala que la incluye (Premium)
   const cortesia = cat.cortesia
   const botella = h('select', { name: 'cortesiaProductoId' }, (cortesia?.botellas || []).map((b) => h('option', { value: b.id }, b.nombre.replace(' (botella)', ''))))
@@ -286,7 +285,7 @@ async function mostrador() {
       h('div.field', h('label', 'Nombre'), h('input', { name: 'nombre', required: true, minLength: 2, maxLength: 120 })),
       h('div.field', h('label', 'Teléfono (opcional)'), h('input', { name: 'telefono', type: 'tel', inputMode: 'numeric' })),
       h('div.field', h('label', 'Personas'), h('input', { name: 'personas', type: 'number', min: 1, max: 16, value: 2, required: true })),
-      h('div.field', h('label', 'Duración'), h('select', { name: 'duracionMin' }, [30, 60, 90, 120, 150, 180, 210, 240].map((n) => h('option', { value: n, selected: n === 60 }, durTxt(n))))),
+      h('div.field', h('label', 'Duración'), h('select', { name: 'duracionMin' }, [60, 90, 120, 150, 180, 210, 240].map((n) => h('option', { value: n, selected: n === 60 }, durTxt(n))))),
       h('div.field', h('label', 'Tamaño de sala'), selTipo),
       h('div.field', h('label', 'Género musical'), h('select', { name: 'tematicaId' }, h('option', { value: '' }, 'Lo elige en sala'), cat.tematicas.map((t) => h('option', { value: t.id }, t.nombre)))),
       h('div.field', h('label', 'Sala # (opcional)'), h('input', { name: 'salaNumero', type: 'number', min: 1 })),
