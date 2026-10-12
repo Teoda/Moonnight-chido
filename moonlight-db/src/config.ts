@@ -1,6 +1,5 @@
 import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
-import path from 'node:path'
 
 const e = process.env
 const isProd = e.NODE_ENV === 'production'
@@ -17,7 +16,7 @@ if (isProd && allowedOrigins.some((o) => !o.startsWith('https://')))
 
 export const config = {
   isProd,
-  port: Number(e.PORT ?? 3000),
+  port: Number(e.PORT ?? 4000), // el front (moonlight-front) ocupa el 3000 y reenvía /api aquí
   sessionSecret,
   allowedOrigins,
   trustProxy: Number(e.TRUST_PROXY ?? 1),
@@ -26,5 +25,4 @@ export const config = {
   admin: { idleMs: null as number | null, absoluteMs: 400 * 24 * 3600_000, renovable: true },           // Administración: hasta que cierre sesión (400 días = máximo de una cookie)
   cliente: { idleMs: 60 * 60_000 as number | null, absoluteMs: 7 * 24 * 3600_000, renovable: false },  // clientes: 1 h de inactividad / 7 días máx.
   pagosSimulados: e.PAGOS_SIMULADOS ? e.PAGOS_SIMULADOS === 'true' : !isProd,
-  frontendDir: path.resolve(__dirname, '..', e.FRONTEND_DIR || '../moonlight-front'), // relativo a la raíz del back
 }

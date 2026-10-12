@@ -6,13 +6,13 @@
       "framework": "express",
       "entrypoint": "src/server.ts"
     },
-    "moonlight-web": {
-      "root": "moonlight-web",
+    "moonlight-front": {
+      "root": "moonlight-front",
       "framework": "sveltekit-1"
     }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": { "service": "moonlight-db" } },
-    { "source": "/(.*)", "destination": { "service": "moonlight-web" } }
+    { "source": "/(.*)", "destination": { "service": "moonlight-front" } }
   ]
 }

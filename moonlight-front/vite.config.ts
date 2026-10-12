@@ -14,6 +14,8 @@ export default defineConfig({
     // En SvelteKit 3 la configuración de Kit va aquí (ya no existe svelte.config.js)
     sveltekit({
       adapter: enVercel ? adapterVercel({ runtime: 'nodejs22.x' }) : adapterNode(),
+      // Fotos, logotipos e íconos: se sirven tal cual desde public/ (p. ej. public/img/logo.jpg → /img/logo.jpg)
+      files: { assets: 'public' },
       // CSP equivalente a la del back (helmet): SvelteKit agrega nonces/hashes a sus propios scripts.
       csp: {
         mode: 'auto',

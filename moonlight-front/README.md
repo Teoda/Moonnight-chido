@@ -8,14 +8,14 @@ Sitio de clientes y panel del personal de Moonlight Karaoke & Social Lounge.
 - El servidor de SvelteKit sirve la app y **reenvía `/api/*` al back de Express** (`moonlight-db`), definido en `API_URL`
   (ver [`src/hooks.server.ts`](src/hooks.server.ts)). Para el navegador todo vive en un mismo origen: las cookies `HttpOnly`
   de sesión y el token CSRF funcionan sin abrir CORS.
-- El back debe aceptar el origen de este sitio en `ALLOWED_ORIGINS` (p. ej. `http://localhost:5173`).
+- El back debe aceptar el origen de este sitio en `ALLOWED_ORIGINS` (p. ej. `http://localhost:3000`).
 - La app se renderiza en el navegador (`ssr = false` en [`src/routes/+layout.ts`](src/routes/+layout.ts)): el store de Redux
   vive en cada navegador y nunca se comparte entre usuarios en el servidor.
 
 ## Variables de entorno (`.env`)
-El host del back se define en `moonlight-web/.env` (cópialo de `.env.example`; no se sube a git):
+El host del back se define en `moonlight-front/.env` (cópialo de `.env.example`; no se sube a git):
 ```env
-API_URL=http://localhost:3000
+API_URL=http://localhost:4000
 ```
 Se declara y valida en [`src/env.ts`](src/env.ts) y el proxy la lee con `import { API_URL } from '$app/env/private'`.
 En desarrollo SvelteKit lee el `.env` solo; en producción `npm start` también lo carga.
@@ -24,7 +24,7 @@ En desarrollo SvelteKit lee el `.env` solo; en producción `npm start` también 
 Primero levanta el back (`cd ../moonlight-db && npm run db:up && npm run dev`). Luego:
 ```bash
 npm install
-npm run dev          # http://localhost:5173
+npm run dev          # http://localhost:3000  (el back corre en el 4000)
 npm run check        # verificación de tipos (svelte-check + TypeScript)
 ```
 Si el back corre en otro host o puerto, cambia `API_URL` en el `.env`.
@@ -52,3 +52,4 @@ npm start              # node build (adapter-node)
 
 > SvelteKit 3: la configuración de Kit vive en `vite.config.ts` (ya no hay `svelte.config.js`) y `$lib` se reemplazó por
 > *subpath imports*: `import x from '#lib/...'` (definido en `package.json` → `imports`).
+# Moonnight-Chido-2

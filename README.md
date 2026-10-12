@@ -2,35 +2,36 @@
 
 Sistema de reservaciones de salas de karaoke: sitio para clientes, panel del personal y API.
 
-| Carpeta | Qué es |
-|---|---|
-| [`moonlight-db/`](moonlight-db/) | Backend: Express + Prisma + MySQL (API, reglas de negocio, base de datos). Ver su [README](moonlight-db/README.md) y [SEGURIDAD.md](moonlight-db/SEGURIDAD.md). |
-| [`moonlight-web/`](moonlight-web/) | **Frontend nuevo:** SvelteKit + TypeScript + Tailwind + Redux Toolkit + axios. Servidor propio que reenvía `/api` al back. Ver su [README](moonlight-web/README.md). |
-| [`moonlight-front/`](moonlight-front/) | Frontend anterior (HTML/CSS/JS sin build), servido por el back. Se conserva hasta validar el nuevo. |
+| Carpeta | Qué es | Puerto local |
+|---|---|---|
+| [`moonlight-front/`](moonlight-front/) | **Front:** SvelteKit + TypeScript + Tailwind CSS + Redux Toolkit + axios. Sitio de clientes y panel del personal; reenvía `/api` al back. Ver su [README](moonlight-front/README.md) y [TRABAJO-REALIZADO.md](moonlight-front/TRABAJO-REALIZADO.md). | **3000** |
+| [`moonlight-db/`](moonlight-db/) | **Back:** Express + Prisma + MySQL (API, reglas de negocio, base de datos). Ver su [README](moonlight-db/README.md) y [SEGURIDAD.md](moonlight-db/SEGURIDAD.md). | 4000 |
 
 ## Arranque rápido
+Con **Docker Desktop** abierto:
 ```bash
-# 1) Back
+# 1) Back (terminal 1)
 cd moonlight-db
 npm install
 copy .env.example .env        # en Linux/Mac: cp .env.example .env
 npm run db:up                 # MySQL en Docker
 npx prisma migrate deploy     # crea / actualiza las tablas
 npm run db:seed               # datos iniciales y usuarios de prueba
-npm run dev                   # API en http://localhost:3000
+npm run dev                   # API en http://localhost:4000
 
-# 2) Front nuevo (otra terminal)
-cd moonlight-web
+# 2) Front (terminal 2)
+cd moonlight-front
 npm install
-npm run dev                   # http://localhost:5173
+copy .env.example .env        # API_URL=http://localhost:4000
+npm run dev                   # http://localhost:3000
 ```
-- Sitio de clientes: http://localhost:5173/ · Panel del personal: http://localhost:5173/staff
-- Front anterior (mientras exista): http://localhost:3000/ y http://localhost:3000/staff.html
+- Sitio de clientes: http://localhost:3000/ · Panel del personal: http://localhost:3000/staff
+- El navegador solo usa el puerto 3000: el front reenvía `/api/*` al back (4000), así las cookies de sesión y el CSRF funcionan sin CORS.
 
 ## Despliegue en Vercel
 Un solo proyecto con dos servicios ([`vercel.json`](vercel.json)), en un mismo dominio:
 - `/api/*` → **moonlight-db** (Express como función). Recibe directo al visitante, así ve su IP real (límites de peticiones y bloqueo de intentos).
-- todo lo demás → **moonlight-web** (SvelteKit).
+- todo lo demás → **moonlight-front** (SvelteKit).
 
 En Vercel (Settings): **Root Directory vacío** (la raíz del repo, donde está `vercel.json`) y Node.js 22.x.
 
