@@ -13,6 +13,9 @@ async function proxy(event: RequestEvent): Promise<Response> {
   const destino = API_URL + url.pathname + url.search
   const headers = new Headers(request.headers)
   for (const h of HOP) headers.delete(h)
+  // Si el back está detrás de ngrok (plan gratuito), evita su página de advertencia "You are about to visit…",
+  // que aparece cuando la petición trae el User-Agent de un navegador. En otros hosts se ignora.
+  headers.set('ngrok-skip-browser-warning', 'true')
   // El back usa estos datos para el límite de peticiones por IP y para saber si la conexión fue HTTPS
   // (en producción configura TRUST_PROXY en moonlight-db según cuántos proxies haya delante).
   headers.set('x-forwarded-for', event.getClientAddress())
