@@ -49,7 +49,8 @@ export interface Pedido {
   creadoEn: string; items: ItemPedido[]; notas?: string | null
 }
 export interface Pago {
-  id: number; tipo: string; metodo: MetodoPago; estado: EstadoPago; monto: Dinero; enLinea: boolean
+  id?: number // el cliente no recibe el id de sus pagos (el personal sí)
+  tipo: string; metodo: MetodoPago; estado: EstadoPago; monto: Dinero; enLinea: boolean
 }
 export interface Cuenta {
   subtotalSala: Dinero; subtotalExtras: Dinero; subtotalPedidosAnticipados: Dinero; subtotalConsumo: Dinero

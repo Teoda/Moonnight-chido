@@ -41,7 +41,7 @@
     <details class="mt-2.5 text-[.88rem]">
       <summary class="cursor-pointer text-muted">Pagos ({d.pagos.length + d.reembolsos.length})</summary>
       <ul class="mt-2 list-none p-0">
-        {#each [...d.pagos, ...d.reembolsos] as p (p.id)}
+        {#each [...d.pagos, ...d.reembolsos] as p, i (i)}
           <li class="flex justify-between gap-2.5 border-b border-dashed border-line py-1">
             <span>{CONCEPTOS[p.tipo] || p.tipo} · {metodoTxt(p.metodo, p.enLinea)}</span>
             <b>{p.tipo === 'REEMBOLSO' ? '−' : ''}{money(p.monto)}</b>

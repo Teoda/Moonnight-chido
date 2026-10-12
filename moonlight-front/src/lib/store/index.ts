@@ -18,7 +18,21 @@ export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
 export const dispatch: AppDispatch = store.dispatch
 
-/** Store de Svelte con el resultado del selector; solo avisa a los componentes cuando el valor cambia. */
+/**
+ * Store de Svelte con el resultado del selector; solo avisa a los componentes cuando el valor cambia.
+ * La comparación es por referencia (===): Redux conserva la misma referencia si esa parte del estado no cambió.
+ * Sin esta comparación Svelte trata cualquier objeto como "cambiado" en cada acción de Redux, y un $effect que
+ * lea el valor y despache una acción se repetiría sin fin (error effect_update_depth_exceeded).
+ */
 export function seleccionar<T>(selector: (s: RootState) => T): Readable<T> {
-  return readable(selector(store.getState()), (set) => store.subscribe(() => set(selector(store.getState()))))
+  return readable(selector(store.getState()), (set) => {
+    let actual = selector(store.getState())
+    set(actual)
+    return store.subscribe(() => {
+      const nuevo = selector(store.getState())
+      if (nuevo === actual) return
+      actual = nuevo
+      set(nuevo)
+    })
+  })
 }
