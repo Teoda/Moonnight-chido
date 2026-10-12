@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "moonlight-db": {
+      "root": "moonlight-db",
+      "framework": "express",
+      "entrypoint": "src/server.ts"
+    },
+    "moonlight-web": {
+      "root": "moonlight-web",
+      "framework": "sveltekit-1"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "moonlight-db" } },
+    { "source": "/(.*)", "destination": { "service": "moonlight-web" } }
+  ]
+}
