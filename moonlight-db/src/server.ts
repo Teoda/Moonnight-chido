@@ -9,6 +9,7 @@ import { HttpError } from './util'
 import { cargarSesion } from './middleware/auth'
 import { floodLimiter, generalLimiter } from './middleware/limiters'
 import auth from './routes/auth'
+import acceso from './routes/acceso'
 import publico from './routes/publico'
 import staff from './routes/staff'
 import cliente from './routes/cliente'
@@ -53,6 +54,7 @@ app.use(['/api/auth', '/api/staff'], cargarSesion('staff'))
 app.use('/api/cliente', cargarSesion('cliente'))
 app.use('/api', generalLimiter) // va después de leer la sesión para reconocer al personal
 app.use('/api/auth', auth)
+app.use('/api/acceso', acceso) // inicio de sesión unificado (personal o cliente)
 app.use('/api/publico', publico)
 app.use('/api/cliente', cliente)
 app.use('/api/staff', staff)

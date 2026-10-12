@@ -36,9 +36,11 @@ http.interceptors.request.use((cfg) => {
 
 http.interceptors.response.use(
   (res) => {
-    // Cada login / "me" trae el token CSRF de su sesión
-    const amb = ambitoDe(res.config.url)
-    if (amb && res.data && typeof res.data === 'object' && 'csrfToken' in res.data) csrf[amb] = res.data.csrfToken
+    // Cada login / "me" trae el token CSRF de su sesión. El login unificado (/acceso/login) dice en `tipo`
+    // qué sesión abrió (personal o cliente).
+    const d = res.data && typeof res.data === 'object' ? res.data : null
+    const amb = res.config.url === '/acceso/login' && (d?.tipo === 'staff' || d?.tipo === 'cliente') ? (d.tipo as Ambito) : ambitoDe(res.config.url)
+    if (amb && d && 'csrfToken' in d) csrf[amb] = d.csrfToken
     return res
   },
   async (err: AxiosError<{ error?: string; detalles?: { mensaje: string }[] }>) => {

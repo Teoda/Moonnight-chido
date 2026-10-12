@@ -104,8 +104,15 @@ moonlight-front/
 check-in, de pedidos en preparación o entregados, del tiempo ampliado, de 10 y 5 min restantes, del fin del tiempo y del
 cierre de cuenta (con su desglose). Si la sesión se cierra por inactividad, se le avisa.
 
+### Inicio de sesión unificado
+Un solo formulario para todos: el back (`POST /api/acceso/login`) revisa si el correo y la contraseña son del
+personal o de un cliente y abre la sesión que corresponde. Desde el botón "Iniciar sesión" del sitio o desde `/staff`:
+el personal termina en el panel y el cliente en "Mis reservaciones". Mantiene las protecciones de antes (mismo mensaje
+y mismo tiempo de respuesta exista o no la cuenta, bloqueo tras 5 intentos, un solo intento contra el límite por IP).
+Las direcciones del front anterior (`/staff.html`, `/index.html`) redirigen a las nuevas.
+
 ### Panel del personal (`/staff`)
-Inicio de sesión del personal y pestañas según el rol (ADMIN ve todas):
+Pestañas según el rol (ADMIN ve todas):
 
 | Pestaña | Roles | Qué hace |
 |---|---|---|
@@ -215,4 +222,6 @@ pestañas del panel con sesión iniciada.
 | `ca83ffd` | Despliegue en Vercel con `adapter-vercel` (local sigue con `adapter-node`) |
 | `8312b58` | Proxy compatible con ngrok (`ngrok-skip-browser-warning`) |
 | *(este cambio)* | Fotos movidas de `static/` a `public/` |
+| *(este cambio)* | Inicio de sesión unificado (personal o cliente) y redirección de `/staff.html` |
+| *(este cambio)* | Arreglo: ciclo infinito en "Mis reservaciones" (error 500) y lista de pagos del estado de cuenta |
 | *(este cambio)* | Unificación: el front viejo (HTML/JS) se reemplazó por este proyecto en `moonlight-front/` (puerto 3000); el back pasó al puerto 4000 y dejó de servir archivos del front |

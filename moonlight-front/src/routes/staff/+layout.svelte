@@ -2,10 +2,12 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { page } from '$app/state'
+  import { goto } from '$app/navigation'
   import { alExpirarSesion } from '#lib/api/client.ts'
   import { dispatch, seleccionar } from '#lib/store/index.ts'
   import { cargarCatalogo } from '#lib/store/catalogo.ts'
-  import { loginStaff, revisarStaff, salirStaff, staffExpirado } from '#lib/store/sesion.ts'
+  import { iniciarSesion, revisarStaff, salirStaff, staffExpirado } from '#lib/store/sesion.ts'
+  import { cargarMis } from '#lib/store/mis.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { ROLES } from '#lib/utils/estados.ts'
   import { fmtReloj } from '#lib/utils/formato.ts'
@@ -31,10 +33,20 @@
     dispatch(cargarCatalogo())
   })
 
+  // Inicio de sesión unificado: con credenciales del personal se entra al panel; con las de un cliente,
+  // se le lleva a sus reservaciones en el sitio.
   async function entrar(e: SubmitEvent) {
     e.preventDefault()
     error = ''; enviando = true
-    try { await dispatch(loginStaff({ email, password })).unwrap(); password = '' } catch (x) { error = (x as Error).message } finally { enviando = false }
+    try {
+      const r = await dispatch(iniciarSesion({ email, password })).unwrap()
+      password = ''
+      if (r.tipo === 'cliente') {
+        dispatch(cargarMis({ silencioso: true }))
+        dispatch(avisar(`Bienvenido, ${r.cliente.nombre.split(' ')[0]}`, 'ok'))
+        goto('/mis-reservaciones')
+      }
+    } catch (x) { error = (x as Error).message } finally { enviando = false }
   }
 </script>
 
@@ -64,7 +76,8 @@
   {:else if !$usuario}
     <div class="card pad-lg mx-auto my-[8vh] max-w-[400px]">
       <img class="logo-img mx-auto -mt-1.5 mb-2 w-full max-w-[300px]" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607" />
-      <h2 class="text-center text-[1.3rem]">Acceso del personal</h2>
+      <h2 class="text-center text-[1.3rem]">Iniciar sesión</h2>
+      <p class="muted small text-center">Personal o cliente: entra con tu correo y contraseña.</p>
       <form onsubmit={entrar}>
         <div class="field"><label for="l-email">Correo</label><input id="l-email" type="email" bind:value={email} required autocomplete="username" /></div>
         <CampoPassword id="l-pw" etiqueta="Contraseña" bind:valor={password} />

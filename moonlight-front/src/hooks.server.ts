@@ -42,6 +42,9 @@ async function proxy(event: RequestEvent): Promise<Response> {
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname === '/api' || event.url.pathname.startsWith('/api/')) return proxy(event)
+  // direcciones del front anterior (HTML) que alguien pudo guardar
+  const viejas: Record<string, string> = { '/staff.html': '/staff', '/index.html': '/' }
+  if (viejas[event.url.pathname]) return new Response(null, { status: 301, headers: { location: viejas[event.url.pathname] + event.url.search } })
 
   const res = await resolve(event)
   res.headers.set('X-Content-Type-Options', 'nosniff')

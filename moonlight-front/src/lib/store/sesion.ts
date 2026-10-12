@@ -9,6 +9,11 @@ interface Estado {
   revisada: { cliente: boolean; staff: boolean } // ya se preguntó a la API si había sesión
 }
 
+// ── inicio de sesión unificado: el back decide si son credenciales del personal o de un cliente ──
+export type Acceso = { tipo: 'staff'; usuario: Usuario } | { tipo: 'cliente'; cliente: Cliente }
+export const iniciarSesion = createAsyncThunk('sesion/iniciar', async (b: { email: string; password: string }) =>
+  api.post<Acceso>('/acceso/login', b))
+
 // ── cliente ──
 export const revisarCliente = createAsyncThunk('sesion/revisarCliente', async () =>
   (await sesionDe<{ cliente: Cliente }>('cliente'))?.cliente ?? null)
@@ -47,6 +52,10 @@ const slice = createSlice({
     setCliente(s, a: PayloadAction<Cliente | null>) { s.cliente = a.payload },
   },
   extraReducers: (b) => {
+    b.addCase(iniciarSesion.fulfilled, (s, a) => {
+      if (a.payload.tipo === 'staff') { s.usuario = a.payload.usuario; s.revisada.staff = true }
+      else { s.cliente = a.payload.cliente; s.revisada.cliente = true }
+    })
     b.addCase(revisarCliente.fulfilled, (s, a) => { s.cliente = a.payload; s.revisada.cliente = true })
     b.addCase(loginCliente.fulfilled, (s, a) => { s.cliente = a.payload })
     b.addCase(registrarCliente.fulfilled, (s, a) => { s.cliente = a.payload })

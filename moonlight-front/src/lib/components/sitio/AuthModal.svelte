@@ -1,12 +1,14 @@
-<!-- Iniciar sesión o crear cuenta (cliente). -->
+<!-- Iniciar sesión (unificado: clientes y personal con el mismo formulario) o crear cuenta de cliente. -->
 <script lang="ts">
+  import { goto } from '$app/navigation'
   import Modal from '../Modal.svelte'
   import CampoPassword from '../CampoPassword.svelte'
   import { auth } from './auth.svelte.ts'
   import { dispatch } from '#lib/store/index.ts'
-  import { loginCliente, registrarCliente } from '#lib/store/sesion.ts'
+  import { iniciarSesion, registrarCliente } from '#lib/store/sesion.ts'
   import { cargarMis } from '#lib/store/mis.ts'
   import { avisar } from '#lib/store/ui.ts'
+  import { ROLES } from '#lib/utils/estados.ts'
   import type { Cliente } from '#lib/api/types.ts'
 
   let modo = $state<'login' | 'registro'>('login')
@@ -18,9 +20,21 @@
     e.preventDefault()
     error = ''; enviando = true
     try {
-      const cliente: Cliente = modo === 'login'
-        ? await dispatch(loginCliente({ email, password })).unwrap()
-        : await dispatch(registrarCliente({ nombre, email, password, aceptaPromos, ...(telefono ? { telefono } : {}) })).unwrap()
+      let cliente: Cliente
+      if (modo === 'login') {
+        // El back decide si son credenciales del personal o de un cliente
+        const r = await dispatch(iniciarSesion({ email, password })).unwrap()
+        if (r.tipo === 'staff') {
+          password = ''
+          auth.abierto = false; auth.despues = null
+          dispatch(avisar(`Bienvenido, ${r.usuario.nombre} · ${ROLES[r.usuario.rol] || r.usuario.rol}`, 'ok'))
+          goto('/staff')
+          return
+        }
+        cliente = r.cliente
+      } else {
+        cliente = await dispatch(registrarCliente({ nombre, email, password, aceptaPromos, ...(telefono ? { telefono } : {}) })).unwrap()
+      }
       password = ''
       dispatch(cargarMis({ silencioso: true }))
       dispatch(avisar(`Bienvenido, ${cliente.nombre.split(' ')[0]}`, 'ok'))
@@ -37,6 +51,7 @@
     <button type="button" class={modo === 'login' ? 'text-texto! border-b-accent!' : ''} onclick={() => { modo = 'login'; error = '' }}>Iniciar sesión</button>
     <button type="button" class={modo === 'registro' ? 'text-texto! border-b-accent!' : ''} onclick={() => { modo = 'registro'; error = '' }}>Crear cuenta</button>
   </div>
+  {#if modo === 'login'}<p class="muted small">Clientes y personal de Moonlight entran aquí con su correo y contraseña.</p>{/if}
   <form onsubmit={enviar}>
     {#if modo === 'registro'}
       <div class="field"><label for="r-nombre">Nombre</label><input id="r-nombre" bind:value={nombre} required minlength="2" maxlength="120" autocomplete="name" /></div>
