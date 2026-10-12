@@ -6,7 +6,7 @@
 3. `npm run db:up`                          (MySQL en Docker, puerto 3309)
 4. `npx prisma migrate dev`                 (crea las tablas)
 5. `npm run db:seed`                        (salas, menú, promos, horario, configuración, usuarios de prueba)
-6. `npm run dev`                            (API en http://localhost:3000)
+6. `npm run dev`                            (API en http://localhost:4000; el sitio lo sirve `../moonlight-front` en el 3000)
 
 > Si ya habías hecho migraciones con la versión anterior del esquema: `npm run db:reset` (borra datos de prueba y recrea todo).
 
@@ -34,13 +34,14 @@ Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, o
 
 ## Rutas
 `/api/publico/*` (sin login: catálogo, salas, disponibilidad) · `/api/cliente/*` (registro, login, mis reservaciones) · `/api/auth/*` (login del personal) · `/api/staff/*` (por rol).
-El frontend vive en la carpeta hermana `../moonlight-front` (configurable con `FRONTEND_DIR`). Lee SEGURIDAD.md antes de subir al dominio.
+Este servidor es **solo la API** (puerto 4000). Lee SEGURIDAD.md antes de subir al dominio.
 La CLI de Prisma se configura en `prisma.config.ts` (ruta del esquema, migraciones y seed).
 
-## Frontend (`../moonlight-front`, lo sirve Express en el mismo origen)
-- `http://localhost:3000/` → sitio de clientes: inicio con "Conócenos" (fachada, misión, visión y mapa de ubicación), salas, menú (con foto del bar), reservar (horario → pedido anticipado → pago simulado → número de reservación) y "Mis reservaciones" (pagar, cancelar, reagendar, pedir a la sala).
-- `http://localhost:3000/staff.html` → panel del personal (el sitio de clientes solo muestra el enlace "Panel de administración" si hay una sesión de Administración abierta en ese navegador); las pestañas dependen del rol: Recepción (buscar código, check-in, no-show, tiempo extra, pedidos, cerrar cuenta, mostrador, cobrar saldo de preórdenes), Agenda, Barra, Salas, Limpieza y Finanzas.
-- HTML/CSS/JS sin dependencias ni build. Sin scripts inline (compatible con la CSP de helmet) y todo el texto se inserta con `textContent`.
+## Frontend (`../moonlight-front`, SvelteKit en el puerto 3000)
+- El front es un proyecto aparte (SvelteKit + TypeScript + Tailwind + Redux Toolkit + axios) que corre en `http://localhost:3000`
+  y reenvía `/api/*` a este back (`API_URL=http://localhost:4000` en `moonlight-front/.env`).
+- `ALLOWED_ORIGINS` de este `.env` debe incluir la dirección del front (`http://localhost:3000` en local).
+- Sitio de clientes en `/` y panel del personal en `/staff`. Ver [`../moonlight-front/README.md`](../moonlight-front/README.md).
 
 ## Por definir (valores configurables en la tabla `configuracion`)
 - `retencionTardiaPct` (30): % retenido si el cliente cancela con menos de 24 h. Hoy es un supuesto.

@@ -24,19 +24,9 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      # Sin build: solo se verifica que los scripts no tengan errores de sintaxis.
-      - run: for f in moonlight-front/js/*.js; do node --check "$f"; done
-
-  web:
-    runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: moonlight-web
+        working-directory: moonlight-front
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
