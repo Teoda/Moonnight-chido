@@ -39,6 +39,17 @@ app.use(cookieParser())
 
 app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
 app.use('/api', floodLimiter)
+// En Vercel no hay setInterval que sobreviva entre peticiones: el mantenimiento (liberar reservas sin pagar,
+// marcar no-show) corre con las propias peticiones, como máximo una vez por minuto en cada instancia.
+// Es idempotente, así que no importa si dos instancias lo corren a la vez.
+if (process.env.VERCEL) {
+  let ultimo = 0
+  app.use('/api', (_req, _res, next) => {
+    if (Date.now() - ultimo < 60_000) return next()
+    ultimo = Date.now()
+    mantenimiento().catch(console.error).finally(() => next())
+  })
+}
 app.use(['/api/auth', '/api/staff'], cargarSesion('staff'))
 app.use('/api/cliente', cargarSesion('cliente'))
 app.use('/api', generalLimiter) // va después de leer la sesión para reconocer al personal
@@ -60,6 +71,11 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Error interno' })
 })
 
-setInterval(() => mantenimiento().catch(console.error), 60_000).unref()
-if (!existsSync(config.frontendDir)) console.warn(`[aviso] No se encontró el frontend en ${config.frontendDir} (define FRONTEND_DIR)`)
-app.listen(config.port, () => console.log(`Moonlight API en http://localhost:${config.port} (${config.isProd ? 'producción' : 'desarrollo'})`))
+// En Vercel la app corre como función (sin proceso permanente): Vercel importa `app` y no se llama a listen().
+export default app
+
+if (!process.env.VERCEL) {
+  setInterval(() => mantenimiento().catch(console.error), 60_000).unref()
+  if (!existsSync(config.frontendDir)) console.warn(`[aviso] No se encontró el frontend en ${config.frontendDir} (define FRONTEND_DIR)`)
+  app.listen(config.port, () => console.log(`Moonlight API en http://localhost:${config.port} (${config.isProd ? 'producción' : 'desarrollo'})`))
+}
