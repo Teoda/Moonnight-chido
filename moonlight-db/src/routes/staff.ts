@@ -16,8 +16,11 @@ const D = (n: Prisma.Decimal.Value = 0) => new Prisma.Decimal(n)
 const idP = (req: Request) => z.coerce.number().int().positive().parse(req.params.id)
 const yo = (req: Request) => req.auth!.usuario!
 const RECEP = requireRol('RECEPCION', 'OPERACIONES') // ADMIN siempre puede
-const metodoZ = z.enum(['EFECTIVO', 'TARJETA'])
+const metodoZ = z.enum(['EFECTIVO', 'TARJETA_DEBITO', 'TARJETA_CREDITO']) // en el establecimiento
 const codigoZ = z.string().trim().toUpperCase().regex(/^ML[0-9A-F]{8}$/, 'Código inválido')
+/** Lo que falta por cobrar de la sala (en línea solo se paga el anticipo; el resto, al llegar). */
+const saldoSala = (rv: { subtotalSala: Prisma.Decimal; pagos: { tipo: string; estado: string; monto: Prisma.Decimal }[] }) =>
+  rv.subtotalSala.sub(rv.pagos.filter((p) => (p.tipo === 'SALA' || p.tipo === 'SALDO_SALA') && p.estado === 'PAGADO').reduce((a, p) => a.add(p.monto), D()))
 const itemsZ = z.array(z.object({ productoId: z.number().int().positive(), cantidad: z.number().int().min(1).max(20) })).min(1).max(15)
 
 // ───────────── RESERVACIONES ─────────────
@@ -35,12 +38,12 @@ r.get('/reservaciones/buscar/:codigo', RECEP, ah(async (req, res) => {
   const rv = await prisma.reservacion.findUnique({
     where: { codigo: codigoZ.parse(req.params.codigo) },
     include: {
-      cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { nombre: true } },
+      cliente: { select: { nombre: true, telefono: true } }, sala: { select: { numero: true, estado: true, tipoSalaId: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { nombre: true } },
       pagos: true, extensiones: true, pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } },
     },
   })
   if (!rv) throw new HttpError(404, 'Reservación no encontrada')
-  res.json(rv)
+  res.json({ ...rv, saldoSala: saldoSala(rv) })
 }))
 
 // Reservar en el establecimiento SIN registro del cliente (solo nombre; teléfono opcional).
@@ -51,7 +54,7 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
     personas: z.number().int().min(1).max(16), tipoSalaId: z.number().int().positive().optional(), salaNumero: z.number().int().optional(),
     tematicaId: z.number().int().positive().optional(), artistas: z.array(z.string().trim().max(80)).max(10).optional(),
     canciones: z.array(z.string().trim().max(120)).max(20).optional(),
-    duracionMin: z.number().int().min(30).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
+    duracionMin: z.number().int().min(60).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
     cortesiaProductoId: z.number().int().positive().optional(),
   }).parse(req.body)
   const ahoraMin = new Date(Math.floor(Date.now() / MIN) * MIN)
@@ -71,15 +74,21 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
 // si no hay otra reservación después (considerando la limpieza); si no, ese tiempo se pierde.
 r.post('/reservaciones/:id/check-in', RECEP, ah(async (req, res) => {
   const rid = idP(req)
+  const { metodo } = z.object({ metodo: metodoZ.optional() }).parse(req.body)
   const [cfg, hs] = await Promise.all([getConfig(prisma), prisma.horarioOperacion.findMany({ where: { activo: true } })])
-  const rv = await prisma.reservacion.findUnique({ where: { id: rid }, include: { sala: true } })
+  const rv = await prisma.reservacion.findUnique({ where: { id: rid }, include: { sala: true, pagos: true } })
   if (!rv || rv.estado !== 'CONFIRMADA') throw new HttpError(409, 'La reservación no está confirmada')
+  const saldo = saldoSala(rv)
+  if (saldo.gt(0) && !metodo) throw new HttpError(400, `Falta cobrar ${saldo.toFixed(2)} de la sala: indica el método de pago`)
   const ahora = new Date()
   const falta = Math.ceil((rv.inicio.getTime() - ahora.getTime()) / MIN)
-  if (falta > 0) throw new HttpError(409, `Su horario inicia en ${falta} min`)
-  const retraso = Math.floor((ahora.getTime() - rv.inicio.getTime()) / MIN)
+  if (falta > cfg.ingresoAnticipadoMin) throw new HttpError(409, `Su horario inicia en ${falta} min (puede ingresar ${cfg.ingresoAnticipadoMin} min antes)`)
+  const retraso = Math.max(0, Math.floor((ahora.getTime() - rv.inicio.getTime()) / MIN))
   if (retraso > cfg.toleranciaMin) throw new HttpError(409, `Pasaron más de ${cfg.toleranciaMin} min de tolerancia: corresponde no-show`)
   if (rv.sala.estado !== 'ACTIVA') throw new HttpError(409, 'La sala aún no está lista (limpieza o mantenimiento)')
+  // Ingreso anticipado: solo si la sala ya quedó libre (el fin no cambia: los minutos de antes son cortesía)
+  if (falta > 0 && (await prisma.reservacion.count({ where: { salaId: rv.salaId, estado: 'EN_CURSO', id: { not: rv.id } } })))
+    throw new HttpError(409, 'La sala sigue ocupada por la reservación anterior')
 
   let finNuevo = rv.fin, perdidoMin = 0
   if (retraso > 0) {
@@ -93,12 +102,16 @@ r.post('/reservaciones/:id/check-in', RECEP, ah(async (req, res) => {
     finNuevo = new Date(rv.fin.getTime() + ganado)
     perdidoMin = retraso - Math.round(ganado / MIN)
   }
-  const x = await prisma.reservacion.updateMany({
-    where: { id: rv.id, estado: 'CONFIRMADA' },
-    data: { estado: 'EN_CURSO', checkInEn: ahora, retrasoMin: retraso, tiempoPerdidoMin: perdidoMin, fin: finNuevo, finOriginal: finNuevo.getTime() !== rv.fin.getTime() ? rv.fin : null },
+  await prisma.$transaction(async (tx) => {
+    const x = await tx.reservacion.updateMany({
+      where: { id: rv.id, estado: 'CONFIRMADA' },
+      data: { estado: 'EN_CURSO', checkInEn: ahora, retrasoMin: retraso, tiempoPerdidoMin: perdidoMin, fin: finNuevo, finOriginal: finNuevo.getTime() !== rv.fin.getTime() ? rv.fin : null },
+    })
+    if (!x.count) throw new HttpError(409, 'La reservación ya fue procesada')
+    // el resto de la sala (lo que no se pagó en línea) se cobra al ingresar
+    if (saldo.gt(0)) await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'SALDO_SALA', metodo: metodo!, monto: saldo, registradoPorId: yo(req).id } })
   })
-  if (!x.count) throw new HttpError(409, 'La reservación ya fue procesada')
-  res.json({ ok: true, retrasoMin: retraso, tiempoPerdidoMin: perdidoMin, fin: finNuevo })
+  res.json({ ok: true, retrasoMin: retraso, tiempoPerdidoMin: perdidoMin, fin: finNuevo, cobradoSala: saldo })
 }))
 
 // No-show manual (el sistema también los marca solo). El pago de la sala y el anticipo se conservan.
@@ -108,10 +121,11 @@ r.post('/reservaciones/:id/no-show', RECEP, ah(async (req, res) => {
   const rv = await prisma.reservacion.findUnique({ where: { id: rid } })
   if (!rv || rv.estado !== 'CONFIRMADA') throw new HttpError(409, 'La reservación no está confirmada')
   if (Date.now() < rv.inicio.getTime() + cfg.toleranciaMin * MIN) throw new HttpError(409, `Aún no pasan los ${cfg.toleranciaMin} min de tolerancia`)
-  await prisma.$transaction([
-    prisma.reservacion.update({ where: { id: rid }, data: { estado: 'NO_SHOW' } }),
-    prisma.pedido.updateMany({ where: { reservacionId: rid, estado: 'EN_ESPERA' }, data: { estado: 'CANCELADO' } }),
-  ])
+  await prisma.$transaction(async (tx) => {
+    const x = await tx.reservacion.updateMany({ where: { id: rid, estado: 'CONFIRMADA' }, data: { estado: 'NO_SHOW' } }) // atómico: falla si ya hubo check-in
+    if (!x.count) throw new HttpError(409, 'La reservación ya fue procesada')
+    await tx.pedido.updateMany({ where: { reservacionId: rid, estado: 'EN_ESPERA' }, data: { estado: 'CANCELADO' } })
+  })
   res.json({ ok: true })
 }))
 
@@ -184,7 +198,7 @@ r.post('/reservaciones/:id/cerrar-cuenta', RECEP, ah(async (req, res) => {
     const pagadoPrevio = rv.pagos.reduce((a, p) => a.add(p.monto), D())
     const saldo = total.sub(pagadoPrevio)
     if (saldo.lt(0)) throw new HttpError(409, 'El total es menor a lo ya pagado: revisa la cuenta con administración')
-    if (saldo.gt(0) && !metodo) throw new HttpError(400, 'Indica el método de pago (EFECTIVO o TARJETA) para el saldo')
+    if (saldo.gt(0) && !metodo) throw new HttpError(400, 'Indica el método de pago (efectivo, débito o crédito) para el saldo')
 
     const c = await tx.cuenta.create({ data: { reservacionId: rv.id, subtotalSala: rv.subtotalSala, subtotalExtras: extras, subtotalPedidosAnticipados: preorden, subtotalConsumo: consumo, descuento, total, pagadoPrevio, saldo, cerradaPorId: yo(req).id } })
     if (saldo.gt(0)) await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'CONSUMO', metodo: metodo!, monto: saldo, registradoPorId: yo(req).id } })
@@ -247,7 +261,7 @@ r.get('/salas', requireRol('OPERACIONES', 'RECEPCION', 'LIMPIEZA'), ah(async (_r
   res.json(await prisma.sala.findMany({
     orderBy: { numero: 'asc' },
     include: {
-      tipoSala: true, tematica: true,
+      tipoSala: true,
       reservaciones: { where: { estado: { in: ['CONFIRMADA', 'EN_CURSO'] }, fin: { gt: ahora }, inicio: { lt: new Date(ahora.getTime() + 24 * 36e5) } }, orderBy: { inicio: 'asc' }, take: 2, select: { codigo: true, estado: true, inicio: true, fin: true, artistas: true, tematica: { select: { nombre: true } } } },
     },
   }))
@@ -256,8 +270,21 @@ r.get('/salas', requireRol('OPERACIONES', 'RECEPCION', 'LIMPIEZA'), ah(async (_r
 r.post('/salas/:numero/mantenimiento', requireRol('OPERACIONES'), ah(async (req, res) => {
   const numero = z.coerce.number().int().positive().parse(req.params.numero)
   const { activo } = z.object({ activo: z.boolean() }).parse(req.body)
-  await prisma.sala.update({ where: { numero }, data: { estado: activo ? 'MANTENIMIENTO' : 'ACTIVA' } })
-  res.json({ ok: true })
+  const sala = await prisma.sala.findUnique({ where: { numero } })
+  if (!sala) throw new HttpError(404, 'Sala no encontrada')
+  if (activo) {
+    if (sala.estado === 'MANTENIMIENTO') throw new HttpError(409, 'La sala ya está en mantenimiento')
+    await prisma.sala.update({ where: { numero }, data: { estado: 'MANTENIMIENTO' } })
+    return void res.json({ ok: true, estado: 'MANTENIMIENTO' })
+  }
+  // Al terminar el mantenimiento la sala no queda lista de inmediato: pasa a Limpieza y se crea la tarea.
+  // Vuelve a ACTIVA (y a poder reservarse) cuando el personal de limpieza la termina.
+  await prisma.$transaction(async (tx) => {
+    const x = await tx.sala.updateMany({ where: { numero, estado: 'MANTENIMIENTO' }, data: { estado: 'LIMPIEZA' } })
+    if (!x.count) throw new HttpError(409, 'La sala no está en mantenimiento')
+    await tx.limpieza.create({ data: { salaId: sala.id } })
+  })
+  res.json({ ok: true, estado: 'LIMPIEZA' })
 }))
 
 const LIMP = requireRol('LIMPIEZA', 'OPERACIONES')

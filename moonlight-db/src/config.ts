@@ -21,8 +21,10 @@ export const config = {
   sessionSecret,
   allowedOrigins,
   trustProxy: Number(e.TRUST_PROXY ?? 1),
-  staff: { idleMs: 30 * 60_000, absoluteMs: 8 * 3600_000 },          // personal: 30 min de inactividad / 8 h máx.
-  cliente: { idleMs: 2 * 3600_000, absoluteMs: 7 * 24 * 3600_000 }, // clientes: 2 h de inactividad / 7 días máx.
+  // Sesiones. idleMs: se cierra tras ese tiempo sin actividad (null = nunca). renovable: el vencimiento se recorre con cada uso.
+  staff: { idleMs: 30 * 60_000 as number | null, absoluteMs: 8 * 3600_000, renovable: false },          // personal: 30 min de inactividad / 8 h máx.
+  admin: { idleMs: null as number | null, absoluteMs: 400 * 24 * 3600_000, renovable: true },           // Administración: hasta que cierre sesión (400 días = máximo de una cookie)
+  cliente: { idleMs: 60 * 60_000 as number | null, absoluteMs: 7 * 24 * 3600_000, renovable: false },  // clientes: 1 h de inactividad / 7 días máx.
   pagosSimulados: e.PAGOS_SIMULADOS ? e.PAGOS_SIMULADOS === 'true' : !isProd,
   frontendDir: path.resolve(__dirname, '..', e.FRONTEND_DIR || '../moonlight-front'), // relativo a la raíz del back
 }

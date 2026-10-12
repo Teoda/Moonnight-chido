@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Moonlight · Karaoke &amp; Social Lounge</title>
-  <meta name="description" content="Moonlight Karaoke & Social Lounge: reserva tu sala de karaoke, salas temáticas, horarios en línea y pedido anticipado de alimentos y bebidas.">
+  <meta name="description" content="Moonlight Karaoke & Social Lounge: reserva tu sala privada de karaoke (Pequeña, Mediana o Premium), elige tu música, consulta horarios en línea y pide alimentos y bebidas por adelantado.">
   <meta name="theme-color" content="#07060e">
   <meta property="og:title" content="Moonlight · Karaoke & Social Lounge">
   <meta property="og:image" content="/img/logo.jpg">
@@ -64,6 +64,29 @@
 
       <div class="row between" style="margin-top:44px"><h2 style="margin:0">Elige tu sala</h2><a href="#menu" class="btn sm">Ver la carta →</a></div>
       <div class="grid cols-auto" id="tipos-inicio" style="margin-top:16px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+
+      <section class="conocenos" aria-labelledby="t-conocenos">
+        <h2 id="t-conocenos" style="margin-top:44px">Conócenos</h2>
+        <div class="conocenos-grid">
+          <figure class="card foto-lugar">
+            <img src="/img/lugar/fachada.jpg" alt="Fachada de Moonlight iluminada de noche con letreros de neón" width="1200" height="675" loading="lazy">
+          </figure>
+          <div class="stack">
+            <article class="card mv"><h3>Misión</h3><p>Brindar entretenimiento en espacios privados con música y tecnología, ofreciendo experiencias únicas para cantar, convivir y disfrutar.</p></article>
+            <article class="card mv"><h3>Visión</h3><p>Ser uno de los principales referentes de entretenimiento de karaoke privado en la región, reconocidos por nuestra innovación, calidad, servicio y capacidad para crear experiencias memorables.</p></article>
+          </div>
+        </div>
+
+        <div class="card ubicacion" id="ubicacion">
+          <div class="row between">
+            <h3 style="margin:0">📍 Ubicación</h3>
+            <a class="btn sm primary" href="https://goo.gl/maps/VUutLXRjVrHx4v8Z6" target="_blank" rel="noopener">Cómo llegar · Google Maps</a>
+          </div>
+          <div class="mapa">
+            <iframe title="Mapa de la ubicación de Moonlight" src="https://maps.google.com/maps?q=19.024583,-98.198667&amp;z=17&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>
+        </div>
+      </section>
     </section>
 
     <!-- SALAS -->
@@ -81,6 +104,9 @@
     <!-- MENÚ -->
     <section class="view" id="view-menu" hidden>
       <h2>Carta</h2>
+      <figure class="banner-foto">
+        <img src="/img/lugar/bar.jpg" alt="Bar de Moonlight con barra iluminada, botellas y lounge" width="1200" height="675" loading="lazy">
+      </figure>
       <p class="muted">Pide por adelantado al reservar o desde tu sala durante la visita. Precios en pesos mexicanos (MXN).</p>
       <div class="chips" id="menu-nav" style="margin-bottom:8px"></div>
       <div id="lista-menu"></div>
@@ -163,7 +189,8 @@
     <div class="wrap row between">
       <span>© Moonlight · <span class="tagline">Karaoke &amp; Social Lounge</span></span>
       <span id="footer-horario"></span>
-      <a href="/staff.html">Acceso del personal</a>
+      <a href="#ubicacion">📍 Cómo llegar</a>
+      <a href="/staff.html" id="link-admin" hidden>Panel de administración</a>
     </div>
   </footer>
 </body>

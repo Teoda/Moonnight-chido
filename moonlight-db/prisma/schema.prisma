@@ -39,7 +39,8 @@ enum CanalReserva {
 }
 
 enum TipoPago {
-  SALA
+  SALA // anticipo en línea (web) o pago completo (sin registro)
+  SALDO_SALA // resto de la sala que recepción cobra al llegar
   ANTICIPO_PEDIDO
   SALDO_PEDIDO
   TIEMPO_EXTRA
@@ -49,7 +50,9 @@ enum TipoPago {
 
 enum MetodoPago {
   EFECTIVO
-  TARJETA
+  TARJETA // pago en línea (simulado)
+  TARJETA_DEBITO // en el establecimiento
+  TARJETA_CREDITO // en el establecimiento
 }
 
 enum EstadoPago {
@@ -98,13 +101,13 @@ enum EstadoLimpieza {
 
 // ───────────── CATÁLOGOS Y SALAS ─────────────
 model TipoSala {
-  id           Int     @id @default(autoincrement())
-  codigo       String  @unique @db.VarChar(10)
-  nombre       String  @db.VarChar(50)
+  id           Int            @id @default(autoincrement())
+  codigo       String         @unique @db.VarChar(10)
+  nombre       String         @db.VarChar(50)
   capacidadMin Int
   capacidadMax Int
-  precioHora   Decimal @db.Decimal(10, 2)
-  descripcion  String? @db.VarChar(255)
+  precioHora   Decimal        @db.Decimal(10, 2)
+  descripcion  String?        @db.VarChar(255)
   salas        Sala[]
   paquetes     ProductoMenu[]
 
@@ -112,7 +115,6 @@ model TipoSala {
 }
 
 // Temática = género musical que elige el cliente al reservar (la sala se ambienta con esa elección).
-// Las salas ya no tienen una temática fija.
 model Tematica {
   id            Int           @id @default(autoincrement())
   nombre        String        @unique @db.VarChar(50)
@@ -120,7 +122,6 @@ model Tematica {
   fotoUrl       String?       @db.VarChar(255)
   activo        Boolean       @default(true)
   orden         Int           @default(0)
-  salas         Sala[]
   reservaciones Reservacion[]
 
   @@map("tematicas")
@@ -130,17 +131,15 @@ model Sala {
   id            Int           @id @default(autoincrement())
   numero        Int           @unique
   tipoSalaId    Int
-  tematicaId    Int? // ya no se usa: la temática la elige el cliente en cada reservación
   estado        EstadoSala    @default(ACTIVA)
   descripcion   String?       @db.VarChar(255) // pendiente: contenido real
   fotoUrl       String?       @db.VarChar(255) // pendiente: fotos reales
   tipoSala      TipoSala      @relation(fields: [tipoSalaId], references: [id])
-  tematica      Tematica?     @relation(fields: [tematicaId], references: [id])
   reservaciones Reservacion[]
   incidencias   Incidencia[]
   limpiezas     Limpieza[]
 
-  @@index([tipoSalaId, tematicaId])
+  @@index([tipoSalaId])
   @@map("salas")
 }
 
@@ -158,17 +157,18 @@ model HorarioOperacion {
 // ───────────── PERSONAS ─────────────
 // Cliente con cuenta: email + passwordHash. Cliente de mostrador: sin email ni contraseña.
 model Cliente {
-  id               Int           @id @default(autoincrement())
-  nombre           String        @db.VarChar(120)
-  telefono         String?       @unique @db.VarChar(20)
-  email            String?       @unique @db.VarChar(150)
-  passwordHash     String?       @db.VarChar(100)
-  aceptaPromos     Boolean       @default(false)
-  intentosFallidos Int           @default(0)
+  id               Int               @id @default(autoincrement())
+  nombre           String            @db.VarChar(120)
+  telefono         String?           @unique @db.VarChar(20)
+  email            String?           @unique @db.VarChar(150)
+  passwordHash     String?           @db.VarChar(100)
+  aceptaPromos     Boolean           @default(false)
+  intentosFallidos Int               @default(0)
   bloqueadoHasta   DateTime?
-  creadoEn         DateTime      @default(now())
+  creadoEn         DateTime          @default(now())
   reservaciones    Reservacion[]
   sesiones         Sesion[]
+  tarjetas         TarjetaGuardada[]
 
   @@map("clientes")
 }
@@ -243,6 +243,7 @@ model Reservacion {
   estado           EstadoReservacion @default(PENDIENTE_PAGO)
   canal            CanalReserva      @default(WEB)
   subtotalSala     Decimal           @db.Decimal(10, 2)
+  anticipoSala     Decimal           @default(0) @db.Decimal(10, 2) // lo que se paga en línea de la sala; el resto, en recepción
   expiraEn         DateTime? // PENDIENTE_PAGO deja de bloquear la sala al vencer
   retrasoMin       Int               @default(0)
   tiempoPerdidoMin Int               @default(0)
@@ -294,6 +295,24 @@ model Pago {
   @@index([reservacionId])
   @@index([pedidoId])
   @@map("pagos")
+}
+
+// Tarjeta que el cliente decidió guardar. NUNCA se guarda el número completo ni el CVV:
+// solo lo necesario para mostrarla y el token que entrega la pasarela (hoy simulado).
+model TarjetaGuardada {
+  id        Int      @id @default(autoincrement())
+  clienteId Int
+  marca     String   @db.VarChar(20)
+  ultimos4  String   @db.Char(4)
+  mesExp    Int
+  anioExp   Int
+  titular   String   @db.VarChar(120)
+  token     String   @unique @db.VarChar(64)
+  creadaEn  DateTime @default(now())
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId])
+  @@map("tarjetas_guardadas")
 }
 
 model Cancelacion {

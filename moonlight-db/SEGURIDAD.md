@@ -8,7 +8,9 @@
 | Cookie enviada desde otro sitio (CSRF) | `SameSite=Strict` + verificación de `Origin` + header `X-CSRF-Token` (HMAC por sesión) |
 | Fijación de sesión | Se crea un token nuevo en cada login y se borra el anterior |
 | Filtración de la base de datos | Solo se guarda el hash SHA-256 del token de sesión |
-| Sesión olvidada abierta | Personal: 30 min de inactividad / 8 h máx. Clientes: 2 h de inactividad / 7 días máx. |
+| Sesión olvidada abierta | Clientes: 1 h de inactividad / 7 días máx. Personal: 30 min de inactividad / 8 h máx. Administración: sin cierre automático (se renueva con el uso, hasta 400 días sin entrar); cierra con "Salir" o "Cerrar todas mis sesiones". |
+| Sesión de cliente usada como de personal (o al revés) | Cookies distintas (`ml_cli` / `ml_staff`) y cada una solo se acepta en sus rutas |
+| Robo de datos de tarjeta | Nunca se guarda el número completo ni el CVV: solo marca, últimos 4, vencimiento y un token. Con pasarela real, el número lo captura su formulario y aquí solo llega el token |
 | Contraseña cambiada tras sospecha | `cambiar-password` y `logout-todas` cierran las demás sesiones |
 | Cookie manipulada desde un subdominio | Prefijo `__Host-` en producción |
 | Fuerza bruta de contraseñas | Límite por IP + bloqueo de la cuenta 15 min tras 5 fallos + bcrypt |
@@ -30,5 +32,6 @@
 
 ## Límites conocidos
 - El límite de peticiones vive en memoria: con varias instancias del servidor se necesita un almacén compartido (Redis).
+- El personal con sesión no cuenta para el límite general (las tabletas del local comparten IP y se actualizan solas); solo aplica el tope anti-inundación de 3000 peticiones / 15 min por IP.
 - El bloqueo por cuenta puede usarse para molestar a un usuario real (15 min); es el costo de frenar la fuerza bruta.
 - Si el dispositivo del usuario tiene malware, ninguna cookie lo salva.

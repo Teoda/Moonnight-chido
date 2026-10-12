@@ -8,7 +8,7 @@ import { config } from './config'
 import { prisma } from './db'
 import { HttpError } from './util'
 import { cargarSesion } from './middleware/auth'
-import { generalLimiter } from './middleware/limiters'
+import { floodLimiter, generalLimiter } from './middleware/limiters'
 import auth from './routes/auth'
 import publico from './routes/publico'
 import staff from './routes/staff'
@@ -24,7 +24,13 @@ if (config.isProd) {
 }
 
 app.use(helmet({
-  contentSecurityPolicy: { directives: { ...helmet.contentSecurityPolicy.getDefaultDirectives(), 'upgrade-insecure-requests': config.isProd ? [] : null } },
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'frame-src': ['https://www.google.com', 'https://maps.google.com'], // mapa de ubicación en el inicio
+      'upgrade-insecure-requests': config.isProd ? [] : null,
+    },
+  },
   hsts: config.isProd ? { maxAge: 15_552_000, includeSubDomains: true } : false,
 }))
 app.use(cors({ origin: (o, cb) => cb(null, !o || config.allowedOrigins.includes(o)), credentials: true }))
@@ -32,7 +38,10 @@ app.use(express.json({ limit: '50kb' }))
 app.use(cookieParser())
 
 app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
-app.use('/api', generalLimiter, cargarSesion)
+app.use('/api', floodLimiter)
+app.use(['/api/auth', '/api/staff'], cargarSesion('staff'))
+app.use('/api/cliente', cargarSesion('cliente'))
+app.use('/api', generalLimiter) // va después de leer la sesión para reconocer al personal
 app.use('/api/auth', auth)
 app.use('/api/publico', publico)
 app.use('/api/cliente', cliente)
@@ -43,7 +52,6 @@ app.use(express.static(config.frontendDir)) // el frontend (carpeta hermana moon
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof ZodError) return void res.status(400).json({ error: 'Datos inválidos', detalles: err.issues.map((i) => ({ campo: i.path.join('.'), mensaje: i.message })) })
   if (err instanceof HttpError) return void res.status(err.status).json({ error: err.message })
-  if (err?.message === 'SIN_DISPONIBILIDAD') return void res.status(409).json({ error: 'No hay salas disponibles en ese horario' })
   if (err?.code === 'P2002') return void res.status(409).json({ error: 'Ese dato ya está registrado' })
   if (err?.code === 'P2034') return void res.status(409).json({ error: 'Conflicto simultáneo, intenta de nuevo' })
   if (err?.type === 'entity.too.large') return void res.status(413).json({ error: 'Solicitud demasiado grande' })

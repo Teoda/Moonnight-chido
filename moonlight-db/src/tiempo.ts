@@ -18,14 +18,24 @@ export function rangoMesLocal(d: Date) {
   const f = (y: number, m: number) => new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10)
   return { desde: aFecha(f(anio, mes), '00:00'), hasta: aFecha(f(anio, mes + 1), '00:00') }
 }
-/** Ventana de operación del día `fecha` (YYYY-MM-DD). Si cierra <= abre, cierra de madrugada del día siguiente. */
-export function ventanaDelDia(fecha: string, hs: Horario[]) {
+function ventanaSimple(fecha: string, hs: Horario[]) {
   const h = hs.find((x) => x.diaSemana === new Date(fecha + 'T00:00:00Z').getUTCDay())
   if (!h) return null
   const abre = aFecha(fecha, h.abre)
   let cierra = aFecha(fecha, h.cierra)
   if (cierra <= abre) cierra = new Date(cierra.getTime() + 86400_000)
   return { abre, cierra }
+}
+/**
+ * Ventana de operación del día `fecha` (YYYY-MM-DD). Si cierra <= abre, cierra de madrugada del día siguiente.
+ * `cierraDia` es el cierre de ese día; `cierra` se extiende si el día siguiente abre justo a esa hora
+ * (operación continua, p. ej. 24 h): así una reservación puede cruzar la medianoche.
+ */
+export function ventanaDelDia(fecha: string, hs: Horario[]) {
+  const v = ventanaSimple(fecha, hs)
+  if (!v) return null
+  const sig = ventanaSimple(sumarDias(fecha, 1), hs)
+  return { abre: v.abre, cierraDia: v.cierra, cierra: sig && sig.abre.getTime() === v.cierra.getTime() ? sig.cierra : v.cierra }
 }
 /** Ventana de operación que contiene `inicio` (considera la madrugada del día siguiente). */
 export function ventanaQueContiene(inicio: Date, hs: Horario[]) {

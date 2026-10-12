@@ -31,3 +31,17 @@ jobs:
           node-version: 22
       # Sin build: solo se verifica que los scripts no tengan errores de sintaxis.
       - run: for f in moonlight-front/js/*.js; do node --check "$f"; done
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: moonlight-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check   # svelte-check + TypeScript
+      - run: npm run build

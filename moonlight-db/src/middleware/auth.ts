@@ -2,10 +2,11 @@ import type { RequestHandler } from 'express'
 import type { Rol } from '@prisma/client'
 import { config } from '../config'
 import { ah, safeEq } from '../util'
-import { validarSesion, csrfDe } from '../security/session'
+import { validarSesion, csrfDe, type TipoSesion } from '../security/session'
 
-export const cargarSesion: RequestHandler = ah(async (req, _res, next) => {
-  req.auth = (await validarSesion(req)) ?? undefined
+/** Lee la sesión del tipo indicado (cada tipo tiene su propia cookie). */
+export const cargarSesion = (tipo: TipoSesion): RequestHandler => ah(async (req, res, next) => {
+  req.auth = (await validarSesion(req, res, tipo)) ?? undefined
   next()
 })
 
