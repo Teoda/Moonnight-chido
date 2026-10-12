@@ -7,7 +7,8 @@ const TZ = 'America/Mexico_City'
 const api = {
   csrf: null,
   onUnauthorized: null,
-  async req(method, url, body) {
+  meUrl: null, // cada página indica dónde pedir un token CSRF nuevo (/api/cliente/me o /api/auth/me)
+  async req(method, url, body, reintentar = true) {
     const headers = { Accept: 'application/json' }
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (method !== 'GET' && this.csrf) headers['X-CSRF-Token'] = this.csrf
@@ -19,6 +20,11 @@ const api = {
     }
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
+      // Token CSRF viejo (p. ej. tras reiniciar el servidor) con la sesión aún válida: pide uno nuevo y reintenta una vez.
+      if (res.status === 403 && data.error === 'Token CSRF inválido' && reintentar && this.meUrl) {
+        const ok = await this.get(this.meUrl).then(() => true, () => false)
+        if (ok) return this.req(method, url, body, false)
+      }
       if (res.status === 401 && this.onUnauthorized) this.onUnauthorized()
       const detalle = data.detalles?.map((d) => d.mensaje).join(' · ')
       throw new ApiError(res.status, detalle ? `${data.error}: ${detalle}` : data.error || `Error ${res.status}`)
@@ -102,6 +108,17 @@ const ESTADOS = {
 const badge = (estado) => {
   const [txt, cls] = ESTADOS[estado] || [estado, '']
   return h('span.badge', { class: cls }, txt)
+}
+
+// ── métodos de pago ──
+const METODOS = { EFECTIVO: 'Efectivo', TARJETA_DEBITO: 'Tarjeta de débito', TARJETA_CREDITO: 'Tarjeta de crédito', TARJETA: 'Tarjeta' }
+const metodoTxt = (m, enLinea) => (METODOS[m] || m) + (enLinea ? ' (en línea)' : '')
+
+// ── contraseñas ──
+/** Casilla "Mostrar contraseña" que alterna el campo entre oculto y visible. */
+function mostrarPw(input) {
+  const caja = h('input', { type: 'checkbox', onchange: () => { input.type = caja.checked ? 'text' : 'password' } })
+  return h('label.check.mostrar-pw', caja, 'Mostrar contraseña')
 }
 
 // ── toasts ──

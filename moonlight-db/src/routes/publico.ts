@@ -15,7 +15,7 @@ r.get('/catalogo', ah(async (_req, res) => {
   // Botella de cortesía: qué tipo de sala la incluye y entre qué botellas se elige
   const tipoCortesia = tipos.find((t) => t.codigo === cfg.cortesiaTipo)
   const cortesia = tipoCortesia ? { tipoSalaId: tipoCortesia.id, botellas: await botellasCortesia(prisma, cfg.cortesiaTopePrecio) } : null
-  res.json({ tipos, tematicas, menu, horarios, cortesia, reglas: { limpiezaMin: cfg.limpiezaMin, pasoMin: cfg.pasoMin, anticipoPedidoPct: cfg.anticipoPedidoPct, horasCancelacion: cfg.horasCancelacion, toleranciaMin: cfg.toleranciaMin } })
+  res.json({ tipos, tematicas, menu, horarios, cortesia, reglas: { limpiezaMin: cfg.limpiezaMin, pasoMin: cfg.pasoMin, anticipoSalaPct: cfg.anticipoSalaPct, anticipoPedidoPct: cfg.anticipoPedidoPct, horasCancelacion: cfg.horasCancelacion, toleranciaMin: cfg.toleranciaMin } })
 }))
 
 r.get('/salas', ah(async (_req, res) => {
@@ -23,7 +23,7 @@ r.get('/salas', ah(async (_req, res) => {
   res.json(salas.map((s) => ({
     numero: s.numero, descripcion: s.descripcion, fotoUrl: s.fotoUrl,
     tipo: s.tipoSala.nombre, capacidad: `${s.tipoSala.capacidadMin}-${s.tipoSala.capacidadMax}`, precioHora: s.tipoSala.precioHora,
-    tipoSalaId: s.tipoSalaId, disponibleParaReservar: s.estado !== 'MANTENIMIENTO',
+    tipoSalaId: s.tipoSalaId, estado: s.estado, disponibleParaReservar: s.estado === 'ACTIVA',
   })))
 }))
 

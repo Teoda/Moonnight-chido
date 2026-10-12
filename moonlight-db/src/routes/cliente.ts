@@ -11,6 +11,7 @@ import { requireCliente, csrf } from '../middleware/auth'
 import { loginLimiter, limiterRegistro, limiterEscritura } from '../middleware/limiters'
 import { crearReservacion, validarSlot, getConfig, salasLibres, validarMusica } from '../disponibilidad'
 import { armarItems } from '../pedidos'
+import { pagoZ, tarjetaParaPago } from '../tarjetas'
 
 const r = Router()
 const DUMMY = bcrypt.hashSync('hash-de-relleno', 10)
@@ -36,7 +37,7 @@ r.post('/registro', limiterRegistro, ah(async (req, res) => {
   if (await prisma.cliente.findUnique({ where: { email: b.email } })) throw new HttpError(409, 'Ese correo ya está registrado')
   if (tel && (await prisma.cliente.findUnique({ where: { telefono: tel } }))) throw new HttpError(409, 'Ese teléfono ya está registrado')
   const c = await prisma.cliente.create({ data: { nombre: b.nombre, email: b.email, telefono: tel, aceptaPromos: b.aceptaPromos ?? false, passwordHash: await bcrypt.hash(b.password, 12) } })
-  await revocarActual(req)
+  await revocarActual(req, 'cliente')
   const token = await crearSesion(req, res, { clienteId: c.id })
   res.status(201).json({ cliente: salida(c), csrfToken: csrfDe(token) })
 }))
@@ -54,7 +55,7 @@ r.post('/login', loginLimiter, ah(async (req, res) => {
     return void res.status(401).json({ error: 'Credenciales inválidas o cuenta bloqueada temporalmente' })
   }
   await prisma.cliente.update({ where: { id: c.id }, data: { intentosFallidos: 0, bloqueadoHasta: null } })
-  await revocarActual(req)
+  await revocarActual(req, 'cliente')
   const token = await crearSesion(req, res, { clienteId: c.id })
   res.json({ cliente: salida(c), csrfToken: csrfDe(token) })
 }))
@@ -64,7 +65,7 @@ r.use(requireCliente, csrf)
 const yo = (req: Request) => req.auth!.cliente!
 
 r.get('/me', (req, res) => void res.json({ cliente: salida(yo(req)), csrfToken: csrfDe(req.auth!.token) }))
-r.post('/logout', ah(async (req, res) => { await cerrarSesion(req, res); res.json({ ok: true }) }))
+r.post('/logout', ah(async (req, res) => { await cerrarSesion(req, res, 'cliente'); res.json({ ok: true }) }))
 r.post('/cambiar-password', ah(async (req, res) => {
   const { actual, nueva } = z.object({ actual: z.string().max(200), nueva: pw }).parse(req.body)
   const c = yo(req)
@@ -85,7 +86,14 @@ const mia = async (req: Request, cod: string) => {
 r.get('/reservaciones', ah(async (req, res) => {
   res.json(await prisma.reservacion.findMany({
     where: { clienteId: yo(req).id }, orderBy: { inicio: 'desc' }, take: 50,
-    include: { sala: { select: { numero: true, tipoSalaId: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { id: true, nombre: true } }, pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } } },
+    include: {
+      sala: { select: { numero: true, tipoSalaId: true, tipoSala: { select: { nombre: true } } } }, tematica: { select: { id: true, nombre: true } },
+      pedidos: { include: { items: { include: { producto: { select: { nombre: true } } } } } },
+      // para su estado de cuenta (sin datos de quién cobró ni referencias internas)
+      pagos: { select: { tipo: true, metodo: true, estado: true, monto: true, enLinea: true, creadoEn: true }, orderBy: { creadoEn: 'asc' } },
+      extensiones: { select: { minutos: true, monto: true } },
+      cuenta: { select: { subtotalSala: true, subtotalExtras: true, subtotalPedidosAnticipados: true, subtotalConsumo: true, descuento: true, total: true, pagadoPrevio: true, saldo: true, cerradaEn: true } },
+    },
   }))
 }))
 
@@ -99,14 +107,16 @@ r.post('/reservaciones', limiterEscritura, ah(async (req, res) => {
   const musica = await validarMusica(prisma, b, { obligatoria: true })
   const x = await crearReservacion({ clienteId: yo(req).id, personas: b.personas, tipoSalaId: b.tipoSalaId, salaNumero: b.salaNumero, inicio: b.inicio, fin: b.fin, canal: 'WEB', items: b.items, cortesiaProductoId: b.cortesiaProductoId, musica })
   res.status(201).json({
-    codigo: x.reservacion.codigo, sala: x.sala.numero, totalSala: x.subtotalSala, anticipoPedido: x.anticipoPedido,
+    codigo: x.reservacion.codigo, sala: x.sala.numero, totalSala: x.subtotalSala, anticipoSala: x.anticipoSala, anticipoPedido: x.anticipoPedido,
     aPagarEnLinea: x.aPagarEnLinea, expiraEn: x.reservacion.expiraEn,
   })
 }))
 
-// Pago en línea: sala completa + 30% del pedido anticipado. SIMULADO (con pasarela real lo confirma su webhook firmado).
-r.post('/reservaciones/:codigo/pagar', ah(async (req, res) => {
+// Pago en línea: anticipo de la sala (50%) + 30% del pedido anticipado, con tarjeta nueva o guardada.
+// SIMULADO (con pasarela real lo confirma su webhook firmado). El resto de la sala lo cobra recepción al llegar.
+r.post('/reservaciones/:codigo/pagar', limiterEscritura, ah(async (req, res) => {
   if (!config.pagosSimulados) throw new HttpError(501, 'Pasarela de pagos no configurada')
+  const b = pagoZ.parse(req.body)
   const rv = await mia(req, req.params.codigo)
   if (rv.estado !== 'PENDIENTE_PAGO' || !rv.expiraEn || rv.expiraEn < new Date()) throw new HttpError(409, 'La reservación venció o ya fue pagada')
   const pedido = await prisma.pedido.findFirst({ where: { reservacionId: rv.id, origen: 'PREORDEN', estado: 'EN_ESPERA' } })
@@ -115,10 +125,26 @@ r.post('/reservaciones/:codigo/pagar', ah(async (req, res) => {
     // no registra pagos. (update() con filtros extra no sirve: Prisma en MySQL lee y luego actualiza por id.)
     const x = await tx.reservacion.updateMany({ where: { id: rv.id, estado: 'PENDIENTE_PAGO', expiraEn: { gt: new Date() } }, data: { estado: 'CONFIRMADA', expiraEn: null } })
     if (!x.count) throw new HttpError(409, 'La reservación venció o ya fue pagada')
-    await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'SALA', metodo: 'TARJETA', monto: rv.subtotalSala, enLinea: true, referencia: 'SIM-' + rv.codigo } })
-    if (pedido && pedido.anticipo.gt(0)) await tx.pago.create({ data: { reservacionId: rv.id, pedidoId: pedido.id, tipo: 'ANTICIPO_PEDIDO', metodo: 'TARJETA', monto: pedido.anticipo, enLinea: true, referencia: 'SIM-' + rv.codigo } })
+    const t = await tarjetaParaPago(tx, yo(req).id, b) // si falla, se revierte todo (no queda pagada ni guardada)
+    const referencia = `SIM-${rv.codigo} ${t.marca} ****${t.ultimos4}`
+    await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'SALA', metodo: 'TARJETA', monto: rv.anticipoSala, enLinea: true, referencia } })
+    if (pedido && pedido.anticipo.gt(0)) await tx.pago.create({ data: { reservacionId: rv.id, pedidoId: pedido.id, tipo: 'ANTICIPO_PEDIDO', metodo: 'TARJETA', monto: pedido.anticipo, enLinea: true, referencia } })
   })
   res.json({ ok: true, estado: 'CONFIRMADA' })
+}))
+
+// Tarjetas guardadas del cliente (solo marca, últimos 4 dígitos y vencimiento).
+r.get('/tarjetas', ah(async (req, res) => {
+  res.json(await prisma.tarjetaGuardada.findMany({
+    where: { clienteId: yo(req).id }, orderBy: { creadaEn: 'desc' },
+    select: { id: true, marca: true, ultimos4: true, mesExp: true, anioExp: true, titular: true },
+  }))
+}))
+r.delete('/tarjetas/:id', ah(async (req, res) => {
+  const id = z.coerce.number().int().positive().parse(req.params.id)
+  const x = await prisma.tarjetaGuardada.deleteMany({ where: { id, clienteId: yo(req).id } })
+  if (!x.count) throw new HttpError(404, 'Tarjeta no encontrada')
+  res.json({ ok: true })
 }))
 
 r.post('/reservaciones/:codigo/cancelar', ah(async (req, res) => {

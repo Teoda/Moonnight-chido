@@ -19,13 +19,23 @@ const st = {
 
 // ───────────── arranque ─────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  api.meUrl = '/api/cliente/me'
+  // la sesión del cliente se cierra tras 1 h sin actividad: avisamos en lugar de fallar en silencio
+  api.onUnauthorized = () => {
+    if (!st.cliente) return
+    st.cliente = null
+    st.misPrev = null
+    pintarUsuario()
+    toast('Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.', 'bad')
+  }
   fx.cielo()
   fx.auto($('main'))
+  mostrarLinkAdmin()
   window.addEventListener('hashchange', router)
-  // "Mis reservaciones" se actualiza sola cada 30 s mientras está a la vista
-  setInterval(() => {
-    if (st.cliente && !document.hidden && !$('#view-mis-reservaciones').hidden) cargarMisReservaciones(true)
-  }, 30_000)
+  // Las reservaciones del cliente se revisan cada 20 s en cualquier vista (para avisarle aunque esté en otra
+  // sección): si "Mis reservaciones" está a la vista además se vuelven a pintar.
+  setInterval(() => { if (st.cliente && !document.hidden) cargarMisReservaciones(true) }, 20_000)
+  setInterval(revisarTiempos, 1000) // avisos de "te quedan 10 / 5 min" y "tu tiempo terminó"
   fx.tic(document.body, () => {
     if (st.misHora) $('#mis-actualizado').textContent = `Actualizado hace ${Math.round((Date.now() - st.misHora) / 1000)} s`
   })
@@ -34,8 +44,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-atras').addEventListener('click', () => { $('#paso-1').scrollIntoView({ behavior: 'smooth' }) })
   $('#btn-recargar').addEventListener('click', () => cargarMisReservaciones())
   $('#filtro-tipo').addEventListener('change', pintarSalas)
-  for (const id of ['#f-fecha', '#f-duracion'])
-    $(id).addEventListener('change', () => { if (st.busqueda) buscarHorarios() })
+  $('#f-fecha').addEventListener('change', () => { if (revisarDia() && st.busqueda) buscarHorarios() })
+  $('#f-duracion').addEventListener('change', () => { if (st.busqueda) buscarHorarios() })
   $('#f-personas').addEventListener('change', () => { ajustarTipoAPersonas(); if (st.busqueda) buscarHorarios() })
   $('#btn-mas-artista').addEventListener('click', () => agregarArtista(true))
   $('#f-canciones').addEventListener('input', pintarResumen)
@@ -44,9 +54,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   router()
 })
 
+/** "Panel de administración" solo se muestra si en este navegador hay una sesión de Administración abierta. */
+async function mostrarLinkAdmin() {
+  // fetch directo (no api.get) para no reemplazar el token CSRF del cliente con el del personal
+  const r = await fetch('/api/auth/me', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).catch(() => null)
+  const d = r?.ok ? await r.json().catch(() => null) : null
+  $('#link-admin').hidden = d?.usuario?.rol !== 'ADMIN'
+}
+
 async function cargarSesion() {
   try { st.cliente = (await api.get('/api/cliente/me')).cliente } catch { st.cliente = null }
   pintarUsuario()
+  if (st.cliente) cargarMisReservaciones(true)
 }
 
 async function cargarCatalogo() {
@@ -71,7 +90,7 @@ async function cargarCatalogo() {
   fx.contar(nSalas, tipos.length, (v) => `${Math.round(v)} tamaños`)
   if (precios.length) fx.contar(desde, Math.min(...precios), (v) => `desde ${money(Math.round(v))}`, 0, 1100)
   fx.rotar($('#rotador'), tematicas.map((t) => t.nombre))
-  $('#txt-pago').textContent = `La sala completa y, si pides alimentos o bebidas, el ${reglas.anticipoPedidoPct}% de tu pedido. El resto lo pagas al llegar.`
+  $('#txt-pago').textContent = `Solo el ${reglas.anticipoSalaPct}% de la sala y, si pides alimentos o bebidas, el ${reglas.anticipoPedidoPct}% de tu pedido. El resto lo pagas al llegar.`
 
   // Formulario de reserva
   const dur = clear($('#f-duracion'))
@@ -83,10 +102,12 @@ async function cargarCatalogo() {
   fecha.min = hoyLocal()
   fecha.max = hoyLocal(60)
   fecha.value = proximoDiaAbierto()
+  revisarDia()
   $('#f-personas').max = Math.max(...tipos.map((t) => t.capacidadMax))
   $('#txt-anticipo').textContent = `Pagas ${reglas.anticipoPedidoPct}% en línea y el resto al llegar`
   $('#txt-politicas').textContent =
-    `Tienes ${reglas.toleranciaMin} min de tolerancia para llegar; después la reservación se marca como no-show y no se reembolsa. ` +
+    `Hoy pagas el ${reglas.anticipoSalaPct}% de la sala con tarjeta; el resto lo pagas en recepción al llegar. ` +
+    `Tienes ${reglas.toleranciaMin} min de tolerancia para llegar; después la reservación se marca como no-show y el anticipo no se reembolsa. ` +
     `Cancelando con ${reglas.horasCancelacion} h o más de anticipación se reembolsa todo. ` +
     `Al terminar, la sala se limpia ${reglas.limpiezaMin} min, por eso el tiempo extra depende de la siguiente reservación.`
 
@@ -102,9 +123,32 @@ function resumenHorario(horarios) {
   const dias = horarios.map((x) => x.diaSemana).sort()
   const mismos = horarios.every((x) => x.abre === horarios[0].abre && x.cierra === horarios[0].cierra)
   const consecutivos = dias.every((d, i) => i === 0 || d === dias[i - 1] + 1)
-  const diasTxt = consecutivos && dias.length > 2 ? `${DIAS[dias[0]]}–${DIAS[dias.at(-1)]}` : dias.map((d) => DIAS[d]).join(', ')
-  return mismos ? `${diasTxt} · ${horarios[0].abre}–${horarios[0].cierra}` : diasTxt
+  const diasTxt = dias.length === 7 ? 'Todos los días' : consecutivos && dias.length > 2 ? `${DIAS[dias[0]]}–${DIAS[dias.at(-1)]}` : dias.map((d) => DIAS[d]).join(', ')
+  return mismos ? `${diasTxt} · ${horaTxt(horarios[0])}` : diasTxt
 }
+
+/** Horario del día (YYYY-MM-DD) o null si ese día no se abre. */
+const horarioDe = (fecha) => (st.catalogo?.horarios || []).find((x) => x.diaSemana === new Date(fecha + 'T00:00:00Z').getUTCDay()) || null
+const NO_LABORAL = () => `Día no laboral. Abrimos ${resumenHorario(st.catalogo?.horarios) || 'otros días'}.`
+
+/** Al elegir la fecha: avisa de inmediato si es día no laboral (sin esperar a buscar horarios). */
+function revisarDia() {
+  const fecha = $('#f-fecha').value
+  const hd = horarioDe(fecha)
+  const aviso = $('#horario-dia')
+  $('#f-fecha').classList.toggle('no-laboral', !!fecha && !hd)
+  aviso.classList.toggle('dia-cerrado', !!fecha && !hd)
+  aviso.textContent = !fecha ? '' : hd ? (hd.abre === hd.cierra ? 'Abierto las 24 h' : `Abierto de ${hd.abre} a ${hd.cierra}`) : 'Día no laboral'
+  if (fecha && !hd) {
+    st.busqueda = null; st.slot = null
+    clear($('#slots')).append(h('div.empty.dia-cerrado', NO_LABORAL()))
+    mostrarPasos()
+  }
+  return !!hd
+}
+
+/** "12:00–02:00", o "24 h" si abre y cierra a la misma hora. */
+const horaTxt = (x) => (x.abre === x.cierra ? '24 h' : `${x.abre}–${x.cierra}`)
 
 function proximoDiaAbierto() {
   const abiertos = new Set((st.catalogo?.horarios || []).map((x) => x.diaSemana))
@@ -174,7 +218,7 @@ function pintarSalas() {
         h('div', h('div.price', money(s.precioHora), h('small', ' /hora')), h('div.muted.small', `${s.capacidad} personas`)),
         s.disponibleParaReservar
           ? h('button.btn.sm.primary', { type: 'button', onclick: () => reservarSala(s) }, 'Reservar')
-          : h('span.badge.bad', 'En mantenimiento')),
+          : s.estado === 'LIMPIEZA' ? h('span.badge.warn', 'En limpieza') : h('span.badge.bad', 'En mantenimiento')),
     ))
   }
 }
@@ -354,6 +398,7 @@ async function buscarHorarios() {
   if (!tipo) return toast('Elige el tamaño de la sala', 'bad')
   if (!fecha || !personas) return toast('Elige fecha y número de personas', 'bad')
   if (personas > tipo.capacidadMax) return toast(`La Sala ${tipo.nombre} es para máximo ${tipo.capacidadMax} personas`, 'bad')
+  if (!revisarDia()) return
   st.busqueda = { fecha, personas, duracionMin, tipoSalaId: tipo.id }
   st.slot = null
   pintarCortesia()
@@ -364,7 +409,7 @@ async function buscarHorarios() {
   try {
     const r = await api.get('/api/publico/disponibilidad?' + qs)
     clear(box)
-    if (r.cerrado) return box.append(h('div.empty', 'Ese día no abrimos. Prueba con otra fecha.'))
+    if (r.cerrado) return box.append(h('div.empty.dia-cerrado', NO_LABORAL()))
     if (!r.slots.length) return box.append(h('div.empty', 'No quedan horarios libres para esa sala. Prueba otra duración, otro tamaño o fecha.'))
     box.append(h('p.muted.small', `Sala ${r.tipo} · elige la hora de inicio:`))
     const chips = h('div.chips')
@@ -436,10 +481,11 @@ function pintarResumen() {
   const sala = tipo ? Number(tipo.precioHora) * (b.duracionMin / 60) : 0
   const pedido = st.menuSel?.total() || 0
   const anticipo = Math.round(pedido * st.catalogo.reglas.anticipoPedidoPct) / 100
+  const anticipoSala = Math.round(sala * st.catalogo.reglas.anticipoSalaPct) / 100
   const fila = (k, v, cls) => [h('dt', { class: cls }, k), h('dd', { class: cls }, v)]
   const totalDd = h('dd.total')
-  fx.contar(totalDd, sala + anticipo, money, st.totalPrev, 450)
-  st.totalPrev = sala + anticipo
+  fx.contar(totalDd, anticipoSala + anticipo, money, st.totalPrev, 450)
+  st.totalPrev = anticipoSala + anticipo
   // avance: horario → música → (pedido) → listo
   $('#barra-pasos').style.width = !st.slot ? '20%' : !st.genero ? '45%' : pedido ? '100%' : '80%'
   const m = st.genero ? musicaElegida() : null
@@ -452,11 +498,12 @@ function pintarResumen() {
     fila('Música', genero ? `🎤 ${genero}` : '—'),
     m?.artistas?.length ? fila('Artistas', m.artistas.slice(0, 3).join(', ') + (m.artistas.length > 3 ? ` y ${m.artistas.length - 3} más` : ''), 'small') : null,
     fila(`Sala (${durTxt(b.duracionMin)})`, money(sala)),
+    fila(`Anticipo sala ${st.catalogo.reglas.anticipoSalaPct}%`, money(anticipoSala)),
     st.cortesia ? fila(`🍾 ${nombreBotella(st.catalogo.cortesia.botellas.find((x) => x.id === st.cortesia)?.nombre || '')}`, 'Cortesía') : null,
     pedido ? fila('Pedido anticipado', money(pedido)) : null,
     pedido ? fila(`Anticipo ${st.catalogo.reglas.anticipoPedidoPct}%`, money(anticipo)) : null,
     h('dt.total', 'A pagar en línea'), totalDd,
-    pedido ? fila('Al llegar', money(pedido - anticipo), 'muted small') : null,
+    fila('Al llegar (en recepción)', money(sala - anticipoSala + pedido - anticipo), 'muted small'),
   ])
 }
 
@@ -482,13 +529,129 @@ async function reservar(btn) {
   st.menuSel.reset()
   st.slot = null
   buscarHorarios()
-  abrirPago({ codigo: r.codigo, sala: r.sala, monto: r.aPagarEnLinea, totalSala: r.totalSala, anticipo: r.anticipoPedido, expiraEn: r.expiraEn })
+  abrirPago({ codigo: r.codigo, sala: r.sala, monto: r.aPagarEnLinea, totalSala: r.totalSala, anticipoSala: r.anticipoSala, anticipo: r.anticipoPedido, expiraEn: r.expiraEn })
+}
+
+// ── tarjeta (pago simulado: se valida como una pasarela, pero no se cobra) ──
+const soloDigitos = (v) => v.replace(/\D/g, '')
+const marcaTarjeta = (n) => (/^4/.test(n) ? 'Visa' : /^(5[1-5]|2[2-7])/.test(n) ? 'Mastercard' : /^3[47]/.test(n) ? 'American Express' : '')
+const luhn = (n) => [...n].reverse().reduce((a, c, i) => { let d = Number(c); if (i % 2) { d *= 2; if (d > 9) d -= 9 } return a + d }, 0) % 10 === 0
+const tarjetaTxt = (t) => `${t.marca} •••• ${t.ultimos4} · vence ${String(t.mesExp).padStart(2, '0')}/${String(t.anioExp).slice(-2)}`
+
+/** Formulario de tarjeta nueva con validación por campo. Devuelve { el, datos() }: datos() regresa { body } para la API o { error }. */
+function formTarjeta() {
+  const MAX_ANIOS = 20 // vencimientos más lejanos no existen en tarjetas reales
+  const campo = (etiqueta, input, extra) => {
+    const msg = h('div.msg-campo', { 'aria-live': 'polite' })
+    const el = h('div.field', h('label', etiqueta, extra || null), input, msg)
+    // el error se muestra al salir del campo; mientras se corrige, se actualiza en vivo
+    let tocado = false
+    const mostrar = (txt) => { msg.textContent = txt || ''; input.setAttribute('aria-invalid', txt ? 'true' : 'false') }
+    input.addEventListener('blur', () => { tocado = !!input.value; if (tocado) mostrar(validar[input.dataset.k]()) })
+    input.addEventListener('input', () => { if (tocado) mostrar(validar[input.dataset.k]()) })
+    return { el, mostrar }
+  }
+  const titular = h('input', { autocomplete: 'cc-name', maxLength: 120, placeholder: 'Como aparece en la tarjeta', dataset: { k: 'titular' } })
+  const numero = h('input', { autocomplete: 'cc-number', inputMode: 'numeric', maxLength: 19, placeholder: '0000 0000 0000 0000', dataset: { k: 'numero' } })
+  const vence = h('input', { autocomplete: 'cc-exp', inputMode: 'numeric', maxLength: 5, placeholder: 'MM/AA', dataset: { k: 'vence' } })
+  const cvv = h('input', { type: 'password', autocomplete: 'cc-csc', inputMode: 'numeric', maxLength: 4, placeholder: '•••', dataset: { k: 'cvv' } })
+  const marca = h('span.badge.accent', { hidden: true })
+  const guardar = h('input', { type: 'checkbox' })
+
+  const validar = {
+    titular: () => (titular.value.trim().length < 3 ? 'Escribe el nombre como aparece en la tarjeta' : ''),
+    numero: () => {
+      const n = soloDigitos(numero.value)
+      if (!n) return 'Escribe el número de la tarjeta'
+      if (!marcaTarjeta(n)) return 'Solo aceptamos Visa, Mastercard y American Express'
+      if (n.length !== (marcaTarjeta(n) === 'American Express' ? 15 : 16)) return 'El número está incompleto'
+      if (!luhn(n)) return 'El número de tarjeta no es válido; revísalo'
+      return ''
+    },
+    vence: () => {
+      const m = /^(\d{2})\/(\d{2})$/.exec(vence.value)
+      if (!m) return 'Escribe el vencimiento como MM/AA'
+      const mm = Number(m[1]), anio = 2000 + Number(m[2]), hoy = new Date()
+      if (mm < 1 || mm > 12) return 'El mes debe ser de 01 a 12'
+      if (anio < hoy.getFullYear() || (anio === hoy.getFullYear() && mm < hoy.getMonth() + 1)) return 'La tarjeta está vencida'
+      if (anio > hoy.getFullYear() + MAX_ANIOS) return 'Fecha de vencimiento no válida'
+      return ''
+    },
+    cvv: () => {
+      const largo = marcaTarjeta(soloDigitos(numero.value)) === 'American Express' ? 4 : 3
+      return cvv.value.length !== largo ? `El CVV son ${largo} dígitos (al reverso${largo === 4 ? ', o al frente en American Express' : ''})` : ''
+    },
+  }
+  numero.addEventListener('input', () => {
+    const n = soloDigitos(numero.value).slice(0, 16)
+    numero.value = n.replace(/(\d{4})(?=\d)/g, '$1 ')
+    marca.textContent = marcaTarjeta(n)
+    marca.hidden = !marca.textContent
+  })
+  vence.addEventListener('input', () => {
+    const d = soloDigitos(vence.value).slice(0, 4)
+    vence.value = d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d
+  })
+  cvv.addEventListener('input', () => { cvv.value = soloDigitos(cvv.value) })
+
+  const c = { titular: campo('Titular', titular), numero: campo('Número de tarjeta ', numero, marca), vence: campo('Vencimiento', vence), cvv: campo('CVV', cvv) }
+  const el = h('div.tarjeta-form',
+    c.titular.el, c.numero.el,
+    h('div.form-grid', c.vence.el, c.cvv.el),
+    h('label.check', guardar, 'Guardar esta tarjeta para mis próximas reservaciones'),
+    h('p.muted.small', { style: 'margin:8px 0 0' }, 'Si la guardas solo conservamos la marca, los últimos 4 dígitos y el vencimiento; nunca el número completo ni el CVV.'))
+  const datos = () => {
+    let primero = null
+    for (const [k, v] of Object.entries(validar)) {
+      const e = v()
+      c[k].mostrar(e)
+      if (e && !primero) primero = { error: e, input: { titular, numero, vence, cvv }[k] }
+    }
+    if (primero) { primero.input.focus(); return { error: 'Revisa los datos de la tarjeta' } }
+    const [mm, aa] = vence.value.split('/').map(Number)
+    return { body: { tarjeta: { numero: soloDigitos(numero.value), titular: titular.value.trim(), mes: mm, anio: 2000 + aa, cvv: cvv.value }, guardar: guardar.checked } }
+  }
+  return { el, datos }
 }
 
 function abrirPago(p) {
-  let m
+  let m, elegida = null // id de la tarjeta guardada elegida; null = tarjeta nueva
+  const err = h('div.err')
+  const nueva = formTarjeta()
+  const guardadas = h('div.tarjetas-guardadas')
+  const cajaNueva = h('div', nueva.el)
+  const pintarGuardadas = (lista) => {
+    clear(guardadas)
+    if (!lista.length) { elegida = null; cajaNueva.hidden = false; return }
+    if (elegida !== null && !lista.some((t) => t.id === elegida)) elegida = lista[0].id
+    const opcion = (id, txt, extra) => h('label.tarjeta-op', { class: elegida === id ? 'on' : '' },
+      h('input', { type: 'radio', name: 'tarjeta', checked: elegida === id, onchange: () => { elegida = id; pintarGuardadas(lista) } }),
+      h('span', txt), extra)
+    for (const t of lista) {
+      guardadas.append(opcion(t.id, tarjetaTxt(t), h('button.x', {
+        type: 'button', title: 'Eliminar tarjeta', 'aria-label': `Eliminar ${tarjetaTxt(t)}`,
+        onclick: async (e) => {
+          e.preventDefault()
+          if (!(await confirmar('Eliminar tarjeta', `¿Eliminar ${tarjetaTxt(t)}?`, { ok: 'Eliminar', peligro: true }))) return
+          if (await accion(null, () => api.req('DELETE', `/api/cliente/tarjetas/${t.id}`))) pintarGuardadas(lista.filter((x) => x.id !== t.id))
+        },
+      }, '×')))
+    }
+    guardadas.append(opcion(null, '+ Usar otra tarjeta'))
+    cajaNueva.hidden = elegida !== null
+  }
+  api.get('/api/cliente/tarjetas').then((lista) => { if (lista.length) elegida = lista[0].id; pintarGuardadas(lista) }, () => {})
+
   const pagar = async (e) => {
-    const r = await accion(e.currentTarget, () => api.post(`/api/cliente/reservaciones/${p.codigo}/pagar`))
+    err.textContent = ''
+    let body
+    if (elegida !== null) body = { tarjetaId: elegida }
+    else {
+      const d = nueva.datos()
+      if (d.error) { err.textContent = d.error; return }
+      body = d.body
+    }
+    const r = await accion(e.currentTarget, () => api.post(`/api/cliente/reservaciones/${p.codigo}/pagar`, body))
     if (!r) return
     m.close()
     exito(p.codigo, p.sala)
@@ -504,14 +667,19 @@ function abrirPago(p) {
       btnPagar.disabled = resta <= 0
     })
   }
-  m = modal('Pagar reservación', [
+  const dd = (v, b) => h('dd', { style: 'margin:0;text-align:right' }, b ? h('b', v) : v)
+  const restoSala = Number(p.totalSala) - Number(p.anticipoSala)
+  m = modal('Pagar anticipo', [
     h('p', `Apartamos la sala ${p.sala ?? ''} para ti.`),
     p.expiraEn ? h('p', reloj) : null,
-    h('dl', { style: 'display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:0' },
-      h('dt.muted', 'Sala'), h('dd', { style: 'margin:0;text-align:right' }, money(p.totalSala)),
-      Number(p.anticipo) ? [h('dt.muted', 'Anticipo del pedido'), h('dd', { style: 'margin:0;text-align:right' }, money(p.anticipo))] : null,
-      h('dt', h('b', 'Total')), h('dd', { style: 'margin:0;text-align:right' }, h('b', money(p.monto)))),
-    h('p.muted.small', { style: 'margin-top:14px' }, 'Pago de demostración: no se solicita ni se guarda ningún dato de tarjeta.'),
+    h('dl', { style: 'display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:0 0 16px' },
+      h('dt.muted', 'Sala (total)'), dd(money(p.totalSala)),
+      h('dt.muted', 'Anticipo de la sala'), dd(money(p.anticipoSala)),
+      Number(p.anticipo) ? [h('dt.muted', 'Anticipo del pedido'), dd(money(p.anticipo))] : null,
+      h('dt', h('b', 'A pagar ahora')), dd(money(p.monto), true),
+      restoSala > 0 ? [h('dt.muted.small', 'Resto de la sala, en recepción al llegar'), h('dd.muted.small', { style: 'margin:0;text-align:right' }, money(restoSala))] : null),
+    guardadas, cajaNueva, err,
+    h('p.muted.small', { style: 'margin-top:12px' }, 'Pago de demostración: no se realiza ningún cargo real.'),
   ], [
     h('button.btn.ghost', { type: 'button', onclick: () => { m.close(); toast('Puedes pagar después desde "Mis reservaciones"') } }, 'Pagar después'),
     btnPagar,
@@ -534,15 +702,17 @@ function abrirAuth(despues, aviso) {
   let m
   const err = h('div.err')
   const tabs = h('div.tabs')
+  const pwLogin = h('input#a-pw', { type: 'password', name: 'password', required: true, autocomplete: 'current-password' })
+  const pwRegistro = h('input#r-pw', { type: 'password', name: 'password', required: true, minLength: 10, autocomplete: 'new-password' })
   const login = h('form',
     h('div.field', h('label', { for: 'a-email' }, 'Correo'), h('input#a-email', { type: 'email', name: 'email', required: true, autocomplete: 'email' })),
-    h('div.field', h('label', { for: 'a-pw' }, 'Contraseña'), h('input#a-pw', { type: 'password', name: 'password', required: true, autocomplete: 'current-password' })),
+    h('div.field', h('label', { for: 'a-pw' }, 'Contraseña'), pwLogin, mostrarPw(pwLogin)),
     h('button.btn.primary', { type: 'submit', style: 'width:100%;justify-content:center' }, 'Iniciar sesión'))
   const registro = h('form', { hidden: true },
     h('div.field', h('label', { for: 'r-nombre' }, 'Nombre'), h('input#r-nombre', { name: 'nombre', required: true, minLength: 2, maxLength: 120, autocomplete: 'name' })),
     h('div.field', h('label', { for: 'r-email' }, 'Correo'), h('input#r-email', { type: 'email', name: 'email', required: true, autocomplete: 'email' })),
     h('div.field', h('label', { for: 'r-tel' }, 'Teléfono (opcional, 10 dígitos)'), h('input#r-tel', { type: 'tel', name: 'telefono', autocomplete: 'tel', inputMode: 'numeric' })),
-    h('div.field', h('label', { for: 'r-pw' }, 'Contraseña (mín. 10 caracteres, letras y números)'), h('input#r-pw', { type: 'password', name: 'password', required: true, minLength: 10, autocomplete: 'new-password' })),
+    h('div.field', h('label', { for: 'r-pw' }, 'Contraseña (mín. 10 caracteres, letras y números)'), pwRegistro, mostrarPw(pwRegistro)),
     h('div.field', h('label.check', h('input', { type: 'checkbox', name: 'aceptaPromos' }), 'Quiero recibir promociones')),
     h('button.btn.primary', { type: 'submit', style: 'width:100%;justify-content:center' }, 'Crear cuenta'))
   const tab = (txt, form) => h('button', { type: 'button', onclick: (e) => {
@@ -555,6 +725,7 @@ function abrirAuth(despues, aviso) {
   const listo = (r) => {
     st.cliente = r.cliente
     pintarUsuario()
+    cargarMisReservaciones(true)
     m.close()
     toast(`Bienvenido, ${r.cliente.nombre.split(' ')[0]}`, 'ok')
     const fn = st.pendiente; st.pendiente = null
@@ -578,6 +749,7 @@ function abrirAuth(despues, aviso) {
 async function logout(btn) {
   await accion(btn, () => api.post('/api/cliente/logout'))
   st.cliente = null
+  st.misPrev = null
   api.csrf = null
   pintarUsuario()
   if (location.hash === '#mis-reservaciones') location.hash = '#inicio'
@@ -586,9 +758,11 @@ async function logout(btn) {
 function cambiarPassword() {
   let m
   const err = h('div.err')
+  const actual = h('input#cp-a', { type: 'password', name: 'actual', required: true, autocomplete: 'current-password' })
+  const nueva = h('input#cp-n', { type: 'password', name: 'nueva', required: true, minLength: 10, autocomplete: 'new-password' })
   const form = h('form',
-    h('div.field', h('label', { for: 'cp-a' }, 'Contraseña actual'), h('input#cp-a', { type: 'password', name: 'actual', required: true, autocomplete: 'current-password' })),
-    h('div.field', h('label', { for: 'cp-n' }, 'Nueva (mín. 10, letras y números)'), h('input#cp-n', { type: 'password', name: 'nueva', required: true, minLength: 10, autocomplete: 'new-password' })),
+    h('div.field', h('label', { for: 'cp-a' }, 'Contraseña actual'), actual, mostrarPw(actual)),
+    h('div.field', h('label', { for: 'cp-n' }, 'Nueva (mín. 10, letras y números)'), nueva, mostrarPw(nueva)),
     err, h('button.btn.primary', { type: 'submit' }, 'Guardar'))
   form.addEventListener('submit', async (e) => {
     e.preventDefault(); err.textContent = ''
@@ -611,15 +785,17 @@ async function cargarMisReservaciones(silencioso = false) {
   }
   let lista
   try { lista = await api.get('/api/cliente/reservaciones') } catch (e) {
-    if (silencioso && e.status !== 401) return
+    if (silencioso) return // en segundo plano no se interrumpe al cliente (si fue 401, onUnauthorized ya avisó)
     clear(box).append(h('div.empty.err', e.message))
     if (e.status === 401) { st.cliente = null; pintarUsuario(); abrirAuth(cargarMisReservaciones) }
     return
   }
   st.misHora = Date.now()
   if (!cambio('mis', lista) && silencioso) return
-  const cambiadas = silencioso ? avisarCambios(st.misPrev || [], lista) : new Set()
+  const cambiadas = silencioso && st.misPrev ? avisarCambios(st.misPrev, lista) : new Set()
   st.misPrev = lista
+  revisarTiempos()
+  if ($('#view-mis-reservaciones').hidden) return // revisión en segundo plano: solo avisos
   clear(box)
   if (!lista.length) return box.append(h('div.card.empty', 'Aún no tienes reservaciones. ', h('a', { href: '#reservar' }, 'Reserva tu primera sala')))
   for (const r of lista) {
@@ -638,7 +814,13 @@ function avisarCambios(antes, ahora) {
     if (!p) continue
     if (p.estado !== r.estado) {
       cambiadas.add(r.codigo)
-      toast(`${r.codigo}: ${(ESTADOS[r.estado] || [r.estado])[0]}`, r.estado === 'CANCELADA' || r.estado === 'NO_SHOW' ? 'bad' : 'ok')
+      if (r.estado === 'FINALIZADA') cuentaCerrada(r)
+      else if (r.estado === 'EN_CURSO') toast(`¡Bienvenido! Tu sala ${r.sala.numero} está lista. Termina a las ${fmtHora(r.fin)} 🎤`, 'ok')
+      else toast(`${r.codigo}: ${(ESTADOS[r.estado] || [r.estado])[0]}`, r.estado === 'CANCELADA' || r.estado === 'NO_SHOW' ? 'bad' : 'ok')
+    }
+    if (r.estado === 'EN_CURSO' && p.fin !== r.fin && new Date(r.fin) > new Date(p.fin)) {
+      cambiadas.add(r.codigo)
+      toast(`Se amplió tu tiempo: ahora terminas a las ${fmtHora(r.fin)} ⏱️`, 'ok')
     }
     const pedPrev = new Map(p.pedidos.map((x) => [x.id, x.estado]))
     for (const ped of r.pedidos) {
@@ -651,6 +833,93 @@ function avisarCambios(antes, ahora) {
     }
   }
   return cambiadas
+}
+
+// ── avisos de tiempo y estado de cuenta ──
+/** Avisos ya mostrados (por reservación y hora de fin), para no repetirlos al recargar la página. */
+const avisado = (() => {
+  let set
+  try { set = new Set(JSON.parse(sessionStorage.getItem('ml-avisos') || '[]')) } catch { set = new Set() }
+  return (clave) => {
+    if (set.has(clave)) return true
+    set.add(clave)
+    try { sessionStorage.setItem('ml-avisos', JSON.stringify([...set].slice(-100))) } catch { /* sin almacenamiento */ }
+    return false
+  }
+})()
+
+/** Avisa al cliente cuando le quedan 10 y 5 minutos, y cuando se le terminó el tiempo de la visita. */
+function revisarTiempos() {
+  if (!st.cliente || !st.misPrev) return
+  for (const r of st.misPrev) {
+    if (r.estado !== 'EN_CURSO') continue
+    const resta = new Date(r.fin) - Date.now(), base = `${r.codigo}:${r.fin}`
+    if (resta <= 0) {
+      if (!avisado(`${base}:fin`)) tiempoTerminado(r)
+    } else if (resta <= 5 * 60_000) {
+      if (!avisado(`${base}:5`)) { fx.ding(); toast(`⏰ Te quedan ${Math.ceil(resta / 60_000)} min en la sala ${r.sala.numero}`, 'bad') }
+    } else if (resta <= 10 * 60_000) {
+      if (!avisado(`${base}:10`)) toast(`⏰ Te quedan ${Math.ceil(resta / 60_000)} min en la sala ${r.sala.numero}. Si quieres más tiempo, pídelo en recepción.`, 'ok')
+    }
+  }
+}
+
+function tiempoTerminado(r) {
+  fx.ding()
+  let m
+  m = modal('⏰ Tu tiempo terminó', [
+    h('p', `Se terminó el tiempo de tu sala ${r.sala.numero} (${fmtHora(r.inicio)}–${fmtHora(r.fin)}).`),
+    h('p.muted', 'Pasa a recepción para cerrar tu cuenta. Si la sala no tiene otra reservación, ahí también puedes pedir tiempo extra.'),
+    estadoCuenta(r),
+  ], [h('button.btn.primary', { type: 'button', onclick: () => m.close() }, 'Entendido')])
+}
+
+function cuentaCerrada(r) {
+  if (avisado(`${r.codigo}:cerrada`)) return
+  fx.ding()
+  let m
+  m = modal('🧾 Tu cuenta se cerró', [
+    h('p', `¡Gracias por cantar en Moonlight! Este es el resumen de tu visita a la sala ${r.sala.numero}.`),
+    estadoCuenta(r),
+  ], [h('button.btn.primary', { type: 'button', onclick: () => m.close() }, 'Listo')])
+}
+
+const CONCEPTOS = {
+  SALA: 'Sala', SALDO_SALA: 'Resto de la sala', ANTICIPO_PEDIDO: 'Anticipo del pedido', SALDO_PEDIDO: 'Resto del pedido',
+  TIEMPO_EXTRA: 'Tiempo extra', CONSUMO: 'Cierre de cuenta', REEMBOLSO: 'Reembolso',
+}
+
+/** Desglose de lo que se lleva cobrado y lo que falta. Con la cuenta cerrada usa sus totales (incluye la promo). */
+function estadoCuenta(r) {
+  const n = (v) => Number(v || 0)
+  const vivos = r.pedidos.filter((p) => p.estado !== 'CANCELADO')
+  const c = r.cuenta
+  const sala = c ? n(c.subtotalSala) : n(r.subtotalSala)
+  const extras = c ? n(c.subtotalExtras) : (r.extensiones || []).reduce((a, x) => a + n(x.monto), 0)
+  const preorden = c ? n(c.subtotalPedidosAnticipados) : vivos.filter((p) => p.origen === 'PREORDEN').reduce((a, p) => a + n(p.total), 0)
+  const consumo = c ? n(c.subtotalConsumo) : vivos.filter((p) => p.origen !== 'PREORDEN').reduce((a, p) => a + n(p.total), 0)
+  const descuento = c ? n(c.descuento) : 0
+  const total = c ? n(c.total) : sala + extras + preorden + consumo
+  const pagos = (r.pagos || []).filter((p) => p.estado === 'PAGADO')
+  const pagado = pagos.reduce((a, p) => a + n(p.monto), 0)
+  const reembolsos = (r.pagos || []).filter((p) => p.tipo === 'REEMBOLSO')
+  const saldo = Math.max(0, total - pagado)
+  const fila = (k, v, cls) => [h('dt', { class: cls }, k), h('dd', { class: cls }, v)]
+  return h('div.estado-cuenta',
+    h('h4', c ? 'Cuenta cerrada' : r.estado === 'EN_CURSO' ? 'Tu cuenta hasta ahora' : 'Estado de cuenta'),
+    h('dl',
+      fila('Sala', money(sala)),
+      extras ? fila('Tiempo extra', money(extras)) : null,
+      preorden ? fila('Pedido anticipado', money(preorden)) : null,
+      consumo ? fila('Consumo en sala', money(consumo)) : null,
+      descuento ? fila('Descuento (promo)', '−' + money(descuento), 'ok') : null,
+      fila('Total', money(total), 'total'),
+      fila('Pagado', money(pagado)),
+      ['FINALIZADA', 'CANCELADA', 'NO_SHOW'].includes(r.estado) ? null : fila('Por pagar', money(saldo), saldo > 0 ? 'pendiente' : 'ok')),
+    pagos.length || reembolsos.length ? h('details.pagos-cuenta', h('summary', `Pagos (${pagos.length + reembolsos.length})`),
+      h('ul', [...pagos, ...reembolsos].map((p) => h('li', h('span', `${CONCEPTOS[p.tipo] || p.tipo} · ${metodoTxt(p.metodo, p.enLinea)}`),
+        h('b', (p.tipo === 'REEMBOLSO' ? '−' : '') + money(p.monto)))))) : null,
+    !c && consumo ? h('p.muted.small', 'El consumo en sala se paga al cerrar la cuenta. Si te toca la promo de la 4ª visita, el descuento se aplica al cerrar.') : null)
 }
 
 /** Línea "en vivo" según el estado: cuenta regresiva para pagar, para llegar, o progreso de la visita. */
@@ -675,7 +944,14 @@ function lineaViva(r) {
   }
   if (r.estado === 'EN_CURSO') {
     const etiqueta = h('span.vivo.accent')
-    return h('div', fx.progreso(r.inicio, r.fin, etiqueta), etiqueta)
+    const fin = h('p.small.tiempo-fin', { hidden: true }, '⏰ Tu tiempo terminó: pasa a recepción para cerrar tu cuenta.')
+    const caja = h('div', fx.progreso(r.inicio, r.fin, etiqueta), etiqueta, fin)
+    fx.tic(fin, () => {
+      const acabo = Date.now() >= new Date(r.fin)
+      fin.hidden = !acabo
+      etiqueta.classList.toggle('bad', acabo)
+    })
+    return caja
   }
   return null
 }
@@ -685,7 +961,7 @@ function tarjetaReservacion(r) {
   if (r.estado === 'PENDIENTE_PAGO') {
     const anticipo = r.pedidos.filter((p) => p.origen === 'PREORDEN' && p.estado === 'EN_ESPERA').reduce((a, p) => a + Number(p.anticipo), 0)
     acciones.append(h('button.btn.sm.primary', { type: 'button', onclick: () => abrirPago({
-      codigo: r.codigo, sala: r.sala.numero, totalSala: r.subtotalSala, anticipo, monto: Number(r.subtotalSala) + anticipo, expiraEn: r.expiraEn,
+      codigo: r.codigo, sala: r.sala.numero, totalSala: r.subtotalSala, anticipoSala: r.anticipoSala, anticipo, monto: Number(r.anticipoSala) + anticipo, expiraEn: r.expiraEn,
     }) }, 'Pagar'))
   }
   if (r.estado === 'CONFIRMADA') acciones.append(h('button.btn.sm', { type: 'button', onclick: () => reagendar(r) }, 'Reagendar'))
@@ -694,6 +970,11 @@ function tarjetaReservacion(r) {
   if (r.estado === 'EN_CURSO') acciones.append(h('button.btn.sm.primary', { type: 'button', onclick: () => pedirEnSala(r) }, 'Pedir a mi sala'))
   if (['PENDIENTE_PAGO', 'CONFIRMADA', 'EN_CURSO'].includes(r.estado))
     acciones.append(h('button.btn.sm', { type: 'button', onclick: () => cambiarMusica(r) }, '🎤 Cambiar música'))
+  if (r.estado !== 'PENDIENTE_PAGO')
+    acciones.append(h('button.btn.sm', { type: 'button', onclick: () => {
+      let m
+      m = modal(`Estado de cuenta · ${r.codigo}`, estadoCuenta(r), [h('button.btn.primary', { type: 'button', onclick: () => m.close() }, 'Cerrar')])
+    } }, '🧾 Estado de cuenta'))
 
   const pedidos = r.pedidos.filter((p) => p.estado !== 'CANCELADO')
   const artistas = (r.artistas || '').split('\n').filter(Boolean)
@@ -704,6 +985,8 @@ function tarjetaReservacion(r) {
     h('p.musica-linea', '🎤 ', r.tematica ? r.tematica.nombre : 'Mi propia lista',
       artistas.length ? h('span.muted', ` · ${artistas.join(', ')}`) : null),
     lineaViva(r),
+    r.canal === 'WEB' && ['CONFIRMADA', 'PENDIENTE_PAGO'].includes(r.estado) && Number(r.subtotalSala) > Number(r.anticipoSala)
+      ? h('p.small.muted', `Anticipo en línea ${money(r.anticipoSala)} · pagas ${money(Number(r.subtotalSala) - Number(r.anticipoSala))} en recepción al llegar`) : null,
     r.tiempoPerdidoMin ? h('p.small.muted', `Llegaste ${r.retrasoMin} min tarde; se perdieron ${r.tiempoPerdidoMin} min.`) : null,
     pedidos.length ? h('div.small', pedidos.map((p) => h('div.row', { style: 'margin-bottom:6px' }, badgeVivo(p.estado),
       h('span.muted', p.items.map(lineaItem).join(', '))))) : null,
@@ -776,12 +1059,13 @@ function reagendar(r) {
   const guardar = h('button.btn.primary', { type: 'button', disabled: true }, 'Reagendar')
   const buscar = async () => {
     elegido = null; guardar.disabled = true
+    if (!horarioDe(fecha.value)) return clear(slots).append(h('p.dia-cerrado', NO_LABORAL()))
     clear(slots).append(h('span.spinner'))
     const qs = new URLSearchParams({ fecha: fecha.value, personas: r.personas, duracionMin, tipoSalaId: r.sala.tipoSalaId })
     try {
       const d = await api.get('/api/publico/disponibilidad?' + qs)
       clear(slots)
-      if (d.cerrado || !d.slots.length) return slots.append(h('p.muted', d.cerrado ? 'Ese día no abrimos.' : 'Sin horarios libres ese día.'))
+      if (d.cerrado || !d.slots.length) return slots.append(d.cerrado ? h('p.dia-cerrado', NO_LABORAL()) : h('p.muted', 'Sin horarios libres ese día.'))
       const chips = h('div.chips')
       for (const s of d.slots) chips.append(h('button.chip', { type: 'button', onclick: (e) => {
         $$('.chip', chips).forEach((c) => c.classList.remove('selected')); e.currentTarget.classList.add('selected')

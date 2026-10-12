@@ -64,7 +64,10 @@ async function main() {
 
   // Horario: lunes (1) a sábado (6), de 12:00 a 02:00 (cierra de madrugada del día siguiente). Domingo cerrado.
   // El seed deja la tabla igual a esta lista: actualiza los días abiertos y desactiva los demás.
-  const HORARIO = { dias: [1, 2, 3, 4, 5, 6], abre: '12:00', cierra: '02:00' }
+  // Para pruebas: HORARIO_24H=true en .env abre los 7 días las 24 h. Quítalo y vuelve a correr el seed para el horario real.
+  const HORARIO = process.env.HORARIO_24H === 'true'
+    ? { dias: [0, 1, 2, 3, 4, 5, 6], abre: '00:00', cierra: '00:00' }
+    : { dias: [1, 2, 3, 4, 5, 6], abre: '12:00', cierra: '02:00' }
   for (const diaSemana of HORARIO.dias) {
     const data = { abre: HORARIO.abre, cierra: HORARIO.cierra, activo: true }
     await prisma.horarioOperacion.upsert({ where: { diaSemana }, update: data, create: { diaSemana, ...data } })
@@ -75,6 +78,7 @@ async function main() {
     limpiezaMin: '15',                    // bloqueo de la sala al terminar cada reservación
     pasoMin: '30',                        // los horarios de inicio van de 30 en 30 min
     duracionMinMin: '60', duracionMaxMin: '240',
+    anticipoSalaPct: '50',                // % de la sala que se paga en línea (el resto en recepción al llegar)
     anticipoPedidoPct: '30',              // % del pedido anticipado que se paga en línea
     horasCancelacionConReembolso: '24',
     retencionTardiaPct: '30',             // % retenido si se cancela con menos de 24 h (por definir)

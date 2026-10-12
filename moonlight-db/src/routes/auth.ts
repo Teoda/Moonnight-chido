@@ -32,8 +32,8 @@ r.post('/login', loginLimiter, ah(async (req, res) => {
 
   await prisma.usuario.update({ where: { id: u.id }, data: { intentosFallidos: 0, bloqueadoHasta: null } })
   await prisma.sesion.deleteMany({ where: { usuarioId: u.id, expiraEn: { lt: new Date() } } })
-  await revocarActual(req)                         // rotación: nunca se reutiliza un id de sesión previo
-  const token = await crearSesion(req, res, { usuarioId: u.id })  // (evita fijación de sesión)
+  await revocarActual(req, 'staff')                // rotación: nunca se reutiliza un id de sesión previo
+  const token = await crearSesion(req, res, { usuarioId: u.id, rol: u.rol })  // (evita fijación de sesión)
   res.json({ usuario: publico(u), csrfToken: csrfDe(token) })
 }))
 
@@ -41,13 +41,13 @@ r.get('/me', requireStaff, (req, res) =>
   void res.json({ usuario: publico(req.auth!.usuario!), csrfToken: csrfDe(req.auth!.token) }))
 
 r.post('/logout', requireStaff, csrf, ah(async (req, res) => {
-  await cerrarSesion(req, res)
+  await cerrarSesion(req, res, 'staff')
   res.json({ ok: true })
 }))
 
 r.post('/logout-todas', requireStaff, csrf, ah(async (req, res) => {
   await prisma.sesion.deleteMany({ where: { usuarioId: req.auth!.usuario!.id } })
-  await cerrarSesion(req, res)
+  await cerrarSesion(req, res, 'staff')
   res.json({ ok: true })
 }))
 

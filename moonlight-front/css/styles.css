@@ -310,9 +310,55 @@ footer .tagline { font-size: .7rem; }
   .tagline { letter-spacing: .2em; }
 }
 
-/* ── galería del local (inicio) ── */
-.galeria { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 16px; }
-.galeria figure { margin: 0; padding: 0; overflow: hidden; }
-.galeria img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; transition: transform .6s ease; }
-.galeria figure:hover img { transform: scale(1.05); }
-.galeria figcaption { padding: 12px 16px; color: var(--muted); font-size: .9rem; }
+/* ── pago con tarjeta ── */
+.tarjetas-guardadas { display: grid; gap: 8px; margin-bottom: 12px; }
+.tarjetas-guardadas:empty { display: none; }
+.tarjeta-op { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); font-size: .92rem; cursor: pointer; }
+.tarjeta-op.on { border-color: var(--accent); background: rgba(180, 92, 255, .1); }
+.tarjeta-op input { width: auto; margin: 0; }
+.tarjeta-op span { flex: 1; }
+.tarjeta-form .badge { margin-left: 6px; vertical-align: 1px; }
+
+/* ── día no laboral ── */
+input.no-laboral { border-color: var(--bad); color: var(--bad); }
+.dia-cerrado { color: var(--bad) !important; font-weight: 600; }
+
+/* ── conócenos: fachada, misión, visión y ubicación (inicio) ── */
+.conocenos-grid { display: grid; gap: 16px; grid-template-columns: 1.3fr 1fr; align-items: stretch; margin-top: 16px; }
+@media (max-width: 860px) { .conocenos-grid { grid-template-columns: 1fr; } }
+.foto-lugar { margin: 0; padding: 0; overflow: hidden; }
+.foto-lugar img { display: block; width: 100%; height: 100%; min-height: 240px; object-fit: cover; }
+.mv h3 { font-family: var(--serif); color: #e9d5ff; text-shadow: var(--neon); letter-spacing: .04em; }
+.mv p { margin: 0; color: var(--muted); }
+.ubicacion { margin-top: 16px; scroll-margin-top: 90px; }
+.mapa { margin-top: 14px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 16 / 7; min-height: 260px; }
+.mapa iframe { display: block; width: 100%; height: 100%; border: 0; filter: invert(.9) hue-rotate(180deg) saturate(.8); } /* mapa en tono oscuro */
+
+/* ── foto de cabecera (bar en la carta y en la barra del personal) ── */
+.banner-foto { margin: 0 0 18px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); position: relative; }
+.banner-foto img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 5; object-fit: cover; object-position: center 60%; }
+.banner-foto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(7, 6, 14, .6)); pointer-events: none; }
+.banner-foto.bajo img { aspect-ratio: 16 / 3.5; }
+
+/* ── mostrar contraseña ── */
+.mostrar-pw { margin: 6px 0 0; font-size: .82rem; cursor: pointer; }
+
+/* ── errores por campo (tarjeta) ── */
+.field .msg-campo { color: var(--bad); font-size: .8rem; min-height: 1.1em; margin-top: 3px; }
+input[aria-invalid="true"] { border-color: var(--bad); }
+
+/* ── estado de cuenta del cliente ── */
+.estado-cuenta { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.estado-cuenta h4 { margin: 0 0 10px; font-size: .95rem; color: var(--gold); }
+.estado-cuenta dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 0; margin: 0; }
+.estado-cuenta dd { padding-left: 12px; }
+.estado-cuenta dt { color: var(--muted); }
+.estado-cuenta dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.estado-cuenta .total { border-top: 1px solid var(--line); padding-top: 8px; font-weight: 700; color: var(--text); }
+.estado-cuenta .pendiente { color: var(--warn); font-weight: 700; }
+.estado-cuenta .ok { color: var(--ok); }
+.pagos-cuenta { margin-top: 10px; font-size: .88rem; }
+.pagos-cuenta summary { cursor: pointer; color: var(--muted); }
+.pagos-cuenta ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.pagos-cuenta li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.tiempo-fin { color: var(--bad); font-weight: 600; margin: 6px 0 0; }

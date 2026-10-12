@@ -24,7 +24,13 @@ if (config.isProd) {
 }
 
 app.use(helmet({
-  contentSecurityPolicy: { directives: { ...helmet.contentSecurityPolicy.getDefaultDirectives(), 'upgrade-insecure-requests': config.isProd ? [] : null } },
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'frame-src': ['https://www.google.com', 'https://maps.google.com'], // mapa de ubicación en el inicio
+      'upgrade-insecure-requests': config.isProd ? [] : null,
+    },
+  },
   hsts: config.isProd ? { maxAge: 15_552_000, includeSubDomains: true } : false,
 }))
 app.use(cors({ origin: (o, cb) => cb(null, !o || config.allowedOrigins.includes(o)), credentials: true }))
@@ -32,7 +38,10 @@ app.use(express.json({ limit: '50kb' }))
 app.use(cookieParser())
 
 app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
-app.use('/api', floodLimiter, cargarSesion, generalLimiter) // generalLimiter va después para reconocer al personal
+app.use('/api', floodLimiter)
+app.use(['/api/auth', '/api/staff'], cargarSesion('staff'))
+app.use('/api/cliente', cargarSesion('cliente'))
+app.use('/api', generalLimiter) // va después de leer la sesión para reconocer al personal
 app.use('/api/auth', auth)
 app.use('/api/publico', publico)
 app.use('/api/cliente', cliente)

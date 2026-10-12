@@ -12,6 +12,7 @@ export async function getConfig(db: Db) {
   const n = (k: string, d: number) => Number(m[k] ?? d)
   return {
     limpiezaMin: n('limpiezaMin', 15), pasoMin: n('pasoMin', 30), durMin: n('duracionMinMin', 60), durMax: n('duracionMaxMin', 240),
+    anticipoSalaPct: n('anticipoSalaPct', 50),          // % de la sala que se paga en línea; el resto, al llegar
     anticipoPedidoPct: n('anticipoPedidoPct', 30), horasCancelacion: n('horasCancelacionConReembolso', 24),
     retencionTardiaPct: n('retencionTardiaPct', 30), toleranciaMin: n('toleranciaLlegadaMin', 10),
     ingresoAnticipadoMin: n('ingresoAnticipadoMin', 15), // check-in permitido hasta estos min antes del inicio
@@ -91,13 +92,13 @@ export async function validarMusica(db: Db, m: { tematicaId?: number; artistas?:
  */
 export function salasLibres(db: Db, p: {
   tipoSalaId: number; salaNumero?: number; inicio: Date; fin: Date; limpiezaMin: number
-  ignorarReservacionId?: number; listas?: boolean
+  ignorarReservacionId?: number
 }) {
   const B = p.limpiezaMin * MIN
   return db.sala.findMany({
     where: {
       tipoSalaId: p.tipoSalaId,
-      estado: p.listas ? ('ACTIVA' as const) : { not: 'MANTENIMIENTO' as const }, // para ingresar YA, la sala debe estar limpia
+      estado: 'ACTIVA' as const, // en Limpieza o Mantenimiento no se ofrece para ninguna reservación nueva
       ...(p.salaNumero ? { numero: p.salaNumero } : {}),
       reservaciones: { none: { ...bloquean(), id: p.ignorarReservacionId ? { not: p.ignorarReservacionId } : undefined, inicio: { lt: new Date(p.fin.getTime() + B) }, fin: { gt: new Date(p.inicio.getTime() - B) } } },
     },
@@ -119,14 +120,14 @@ export async function horariosDisponibles(db: Db, p: { fecha: string; personas?:
   const v = ventanaDelDia(p.fecha, hs)
   if (!v) return { cerrado: true, slots: [] as { inicio: string; disponibles: number }[] }
   const tipo = await resolverTipo(db, p)
-  const salas = await db.sala.findMany({ where: { tipoSalaId: tipo.id, estado: { not: 'MANTENIMIENTO' } }, select: { id: true } })
+  const salas = await db.sala.findMany({ where: { tipoSalaId: tipo.id, estado: 'ACTIVA' }, select: { id: true } }) // ni en limpieza ni en mantenimiento
   const B = cfg.limpiezaMin * MIN
   const rs = salas.length ? await db.reservacion.findMany({
     where: { salaId: { in: salas.map((s) => s.id) }, ...bloquean(), inicio: { lt: new Date(v.cierra.getTime() + B) }, fin: { gt: new Date(v.abre.getTime() - B) } },
     select: { salaId: true, inicio: true, fin: true },
   }) : []
   const dur = p.duracionMin * MIN, ahora = Date.now(), slots: { inicio: string; disponibles: number }[] = []
-  for (let t = v.abre.getTime(); t + dur <= v.cierra.getTime(); t += cfg.pasoMin * MIN) {
+  for (let t = v.abre.getTime(); t < v.cierraDia.getTime() && t + dur <= v.cierra.getTime(); t += cfg.pasoMin * MIN) {
     if (t < ahora) continue
     const n = salas.filter((s) => !rs.some((r) => r.salaId === s.id && r.inicio.getTime() < t + dur + B && r.fin.getTime() > t - B)).length
     if (n) slots.push({ inicio: new Date(t).toISOString(), disponibles: n })
@@ -153,7 +154,7 @@ export async function validarSlot(db: Db, inicio: Date, fin: Date, opt: { mostra
 export async function crearReservacion(d: {
   clienteId: number; personas: number; tipoSalaId?: number; salaNumero?: number; inicio: Date; fin: Date
   canal: 'WEB' | 'MOSTRADOR'; creadaPorId?: number; items?: { productoId: number; cantidad: number }[]
-  mostrador?: { metodo: 'EFECTIVO' | 'TARJETA'; iniciarAhora: boolean }
+  mostrador?: { metodo: 'EFECTIVO' | 'TARJETA_DEBITO' | 'TARJETA_CREDITO'; iniciarAhora: boolean }
   cortesiaProductoId?: number // botella incluida con la Sala Premium
   musica: { tematicaId: number | null; artistas: string | null; canciones: string | null } // ya validada (validarMusica)
 }) {
@@ -163,15 +164,17 @@ export async function crearReservacion(d: {
         const cfg = await getConfig(tx)
         const tipo = await resolverTipo(tx, { tipoSalaId: d.tipoSalaId, personas: d.personas })
         const cortesia = await lineaCortesia(tx, cfg, tipo.codigo, d.cortesiaProductoId)
-        const [sala] = await salasLibres(tx, { tipoSalaId: tipo.id, salaNumero: d.salaNumero, inicio: d.inicio, fin: d.fin, limpiezaMin: cfg.limpiezaMin, listas: d.mostrador?.iniciarAhora })
+        const [sala] = await salasLibres(tx, { tipoSalaId: tipo.id, salaNumero: d.salaNumero, inicio: d.inicio, fin: d.fin, limpiezaMin: cfg.limpiezaMin })
         if (!sala) throw new HttpError(409, 'No hay salas disponibles en ese horario')
         const horas = new Prisma.Decimal((d.fin.getTime() - d.inicio.getTime()) / MIN).div(60)
         const subtotalSala = tipo.precioHora.mul(horas).toDecimalPlaces(2)
         const web = d.canal === 'WEB'
+        // En línea se paga un anticipo de la sala; sin registro (mostrador) se paga completa
+        const anticipoSala = web ? subtotalSala.mul(cfg.anticipoSalaPct).div(100).toDecimalPlaces(2) : subtotalSala
         const rv = await tx.reservacion.create({
           data: {
             codigo: 'ML' + randomBytes(4).toString('hex').toUpperCase(),
-            clienteId: d.clienteId, salaId: sala.id, inicio: d.inicio, fin: d.fin, personas: d.personas, canal: d.canal, subtotalSala,
+            clienteId: d.clienteId, salaId: sala.id, inicio: d.inicio, fin: d.fin, personas: d.personas, canal: d.canal, subtotalSala, anticipoSala,
             estado: web ? 'PENDIENTE_PAGO' : d.mostrador!.iniciarAhora ? 'EN_CURSO' : 'CONFIRMADA',
             expiraEn: web ? new Date(Date.now() + cfg.vencePendienteMin * MIN) : null,
             checkInEn: d.mostrador?.iniciarAhora ? new Date() : null, creadaPorId: d.creadaPorId, ...d.musica,
@@ -193,7 +196,7 @@ export async function crearReservacion(d: {
         }
         if (d.mostrador)
           await tx.pago.create({ data: { reservacionId: rv.id, tipo: 'SALA', metodo: d.mostrador.metodo, monto: subtotalSala, enLinea: false, registradoPorId: d.creadaPorId } })
-        return { reservacion: rv, sala, subtotalSala, anticipoPedido, aPagarEnLinea: subtotalSala.add(anticipoPedido) }
+        return { reservacion: rv, sala, subtotalSala, anticipoSala, anticipoPedido, aPagarEnLinea: anticipoSala.add(anticipoPedido) }
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
     } catch (e: any) {
       if (e.code === 'P2034' && intento < 2) continue

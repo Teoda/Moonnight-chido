@@ -27,12 +27,15 @@ const musicaTxt = (r) => {
 const hace = (fecha) => fx.falta(Date.now() - new Date(fecha))
 
 const puede = (...roles) => st.usuario && (st.usuario.rol === 'ADMIN' || roles.includes(st.usuario.rol))
-const metodoSelect = () => h('select', h('option', { value: 'EFECTIVO' }, 'Efectivo'), h('option', { value: 'TARJETA' }, 'Tarjeta'))
+// En el establecimiento se registra si la tarjeta es de débito o de crédito
+const metodoSelect = () => h('select', ['EFECTIVO', 'TARJETA_DEBITO', 'TARJETA_CREDITO'].map((m) => h('option', { value: m }, METODOS[m])))
 
 // ───────────── sesión ─────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  api.meUrl = '/api/auth/me'
   api.onUnauthorized = () => { if (st.usuario) { st.usuario = null; toast('Tu sesión expiró. Vuelve a entrar.', 'bad'); mostrarLogin() } }
   $('#form-login').addEventListener('submit', login)
+  $('#l-pw-ver').addEventListener('change', (e) => { $('#l-pw').type = e.currentTarget.checked ? 'text' : 'password' })
   $('#form-buscar').addEventListener('submit', (e) => { e.preventDefault(); buscar($('#b-codigo').value) })
   $('#btn-mostrador').addEventListener('click', mostrador)
   $('#btn-por-cobrar').addEventListener('click', cargarPorCobrar)
@@ -74,7 +77,7 @@ async function login(e) {
   try {
     const r = await api.post('/api/auth/login', { email: $('#l-email').value, password: $('#l-pw').value })
     st.usuario = r.usuario
-    $('#l-pw').value = ''
+    $('#l-pw').value = ''; $('#l-pw').type = 'password'; $('#l-pw-ver').checked = false
     entrar()
   } catch (x) { $('#login-err').textContent = x.message }
 }
@@ -113,9 +116,11 @@ async function salir(btn, todas) {
 function cambiarPassword() {
   let m
   const err = h('div.err')
+  const actual = h('input#cp-a', { type: 'password', name: 'actual', required: true, autocomplete: 'current-password' })
+  const nueva = h('input#cp-n', { type: 'password', name: 'nueva', required: true, minLength: 10, autocomplete: 'new-password' })
   const form = h('form',
-    h('div.field', h('label', { for: 'cp-a' }, 'Contraseña actual'), h('input#cp-a', { type: 'password', name: 'actual', required: true, autocomplete: 'current-password' })),
-    h('div.field', h('label', { for: 'cp-n' }, 'Nueva (mín. 10, letras y números)'), h('input#cp-n', { type: 'password', name: 'nueva', required: true, minLength: 10, autocomplete: 'new-password' })),
+    h('div.field', h('label', { for: 'cp-a' }, 'Contraseña actual'), actual, mostrarPw(actual)),
+    h('div.field', h('label', { for: 'cp-n' }, 'Nueva (mín. 10, letras y números)'), nueva, mostrarPw(nueva)),
     err, h('div.row', h('button.btn.primary', { type: 'submit' }, 'Guardar'),
       h('button.btn.danger', { type: 'button', onclick: (e) => { m.close(); salir(e.currentTarget, true) } }, 'Cerrar todas mis sesiones')))
   form.addEventListener('submit', async (e) => {
@@ -155,10 +160,11 @@ function detalleReservacion(rv) {
   const recargar = () => { buscar(rv.codigo); cargarPorCobrar() }
   const post = (btn, url, body, ok) => accion(btn, async () => { const r = await api.post(url, body); toast(ok(r), 'ok'); recargar(); return r })
 
+  const saldo = Number(rv.saldoSala || 0)
   if (rv.estado === 'CONFIRMADA') {
     acciones.append(
-      h('button.btn.primary', { type: 'button', onclick: (e) => post(e.currentTarget, `/api/staff/reservaciones/${rv.id}/check-in`, {},
-        (r) => (r.retrasoMin > 0 ? `Check-in con ${r.retrasoMin} min de retraso${r.tiempoPerdidoMin ? ` (se pierden ${r.tiempoPerdidoMin} min)` : ' (se recorrió el fin)'}. Termina ${fmtHora(r.fin)}` : `Check-in listo. Termina ${fmtHora(r.fin)}`)) }, 'Check-in'),
+      h('button.btn.primary', { type: 'button', onclick: (e) => checkIn(rv, saldo, e.currentTarget, recargar) },
+        saldo > 0 ? `Check-in y cobrar ${money(saldo)}` : 'Check-in'),
       h('button.btn.danger', { type: 'button', onclick: async (e) => {
         const b = e.currentTarget
         if (await confirmar('Marcar no-show', `${rv.codigo}: no se reembolsa el pago y se cancela el pedido anticipado.`, { ok: 'Marcar no-show', peligro: true }))
@@ -186,20 +192,45 @@ function detalleReservacion(rv) {
       ['Música', musicaTxt(rv)],
       rv.canciones ? ['Canciones', rv.canciones.split('\n').join(' · ')] : null,
       ['Personas', rv.personas],
-      ['Canal', rv.canal === 'WEB' ? 'En línea' : 'Mostrador'],
+      ['Canal', rv.canal === 'WEB' ? 'En línea' : 'Sin registro'],
       ['Sala (subtotal)', money(rv.subtotalSala)],
       ['Pagado', money(pagado)],
+      saldo > 0 ? ['Resta de la sala', h('b', { style: 'color:var(--warn)' }, `${money(saldo)} · se cobra en el check-in`)] : null,
       rv.retrasoMin ? ['Retraso', `${rv.retrasoMin} min (perdidos ${rv.tiempoPerdidoMin})`] : null,
       rv.checkInEn ? ['Check-in', fmtFechaHora(rv.checkInEn)] : null,
     ]),
     rv.pagos.length ? h('div', h('h3', 'Pagos'), h('div.table-wrap', h('table',
       h('thead', h('tr', ['Tipo', 'Método', 'Monto', 'Estado'].map((t) => h('th', t)))),
-      h('tbody', rv.pagos.map((p) => h('tr', h('td', p.tipo.replace(/_/g, ' ').toLowerCase()), h('td', p.metodo.toLowerCase() + (p.enLinea ? ' (en línea)' : '')), h('td', money(p.monto)), h('td', p.estado.toLowerCase()))))))) : null,
+      h('tbody', rv.pagos.map((p) => h('tr', h('td', p.tipo.replace(/_/g, ' ').toLowerCase()), h('td', metodoTxt(p.metodo, p.enLinea)), h('td', money(p.monto)), h('td', p.estado.toLowerCase()))))))) : null,
     rv.pedidos.length ? h('div', h('h3', 'Pedidos'), rv.pedidos.map((p) => h('div.row', { style: 'margin-bottom:6px' },
       badge(p.estado), h('span.small.muted', p.origen.replace('_', ' ')), h('span.small', p.items.map(lineaItem).join(', ')), h('b.small', money(p.total))))) : null,
     rv.extensiones.length ? h('p.small.muted', 'Tiempo extra: ' + rv.extensiones.map((x) => `${x.minutos} min (${money(x.monto)})`).join(', ')) : null,
     acciones.childNodes.length ? acciones : null,
   )
+}
+
+/** Check-in; si el cliente solo pagó el anticipo en línea, primero se cobra el resto de la sala. */
+async function checkIn(rv, saldo, btn, listo) {
+  const msg = (r) => (r.retrasoMin > 0 ? `Check-in con ${r.retrasoMin} min de retraso${r.tiempoPerdidoMin ? ` (se pierden ${r.tiempoPerdidoMin} min)` : ' (se recorrió el fin)'}. Termina ${fmtHora(r.fin)}` : `Check-in listo. Termina ${fmtHora(r.fin)}`)
+    + (Number(r.cobradoSala) > 0 ? ` · cobrado ${money(r.cobradoSala)}` : '')
+  if (saldo <= 0) {
+    const r = await accion(btn, () => api.post(`/api/staff/reservaciones/${rv.id}/check-in`, {}))
+    if (r) { toast(msg(r), 'ok'); listo() }
+    return
+  }
+  let m
+  const metodo = metodoSelect()
+  const ok = h('button.btn.primary', { type: 'button' }, `Cobrar ${money(saldo)} y hacer check-in`)
+  ok.addEventListener('click', async () => {
+    const r = await accion(ok, () => api.post(`/api/staff/reservaciones/${rv.id}/check-in`, { metodo: metodo.value }))
+    if (!r) return
+    m.close(); toast(msg(r), 'ok'); listo()
+  })
+  m = modal(`Check-in · ${rv.codigo}`, [
+    h('p', 'El cliente pagó en línea el anticipo de la sala. Cobra el resto antes de darle acceso:'),
+    h('div.code-big', { style: 'font-size:1.8rem' }, money(saldo)),
+    h('div.field', h('label', 'Método de pago'), metodo),
+  ], [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Volver'), ok])
 }
 
 function extender(rv, listo) {
@@ -329,7 +360,7 @@ async function mostrador() {
   selTipo.addEventListener('change', revisarCortesia)
   selTipo.value = (cat.tipos.find((x) => x.capacidadMin <= 2 && 2 <= x.capacidadMax) || cat.tipos[0]).id
   revisarCortesia()
-  m = modal('Reservación de mostrador', form, [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Volver'), ok])
+  m = modal('Reservación · cliente sin registro', form, [h('button.btn.ghost', { type: 'button', onclick: () => m.close() }, 'Volver'), ok])
 }
 
 async function cargarPorCobrar() {
@@ -371,7 +402,7 @@ async function cargarAgenda() {
       h('tbody', rs.map((r) => h('tr', { class: abrir ? 'click' : '', onclick: abrir ? () => { abrirTab('recepcion'); buscar(r.codigo) } : null },
         h('td', `${fmtHora(r.inicio)}–${fmtHora(r.fin)}`), h('td', h('code', r.codigo)),
         h('td', r.cliente.nombre), h('td', r.sala.numero), h('td', r.personas), h('td.small', musicaTxt(r)),
-        h('td.small.muted', r.canal === 'WEB' ? 'En línea' : 'Mostrador'), h('td', badge(r.estado))))),
+        h('td.small.muted', r.canal === 'WEB' ? 'En línea' : 'Sin registro'), h('td', badge(r.estado))))),
     ))
   } catch (e) { clear(box).append(h('div.empty.err', e.message)) }
 }
@@ -464,7 +495,7 @@ async function cargarSalas(forzar = true) {
         ops && s.estado !== 'LIMPIEZA' ? h('button.btn.sm', { type: 'button', style: 'margin-top:10px', class: s.estado === 'MANTENIMIENTO' ? 'ok' : 'danger', onclick: async (e) => {
           const activo = s.estado !== 'MANTENIMIENTO'
           const r = await accion(e.currentTarget, () => api.post(`/api/staff/salas/${s.numero}/mantenimiento`, { activo }))
-          if (r) { toast(`Sala ${s.numero} ${activo ? 'en mantenimiento' : 'activa'}`, 'ok'); cargarSalas() }
+          if (r) { toast(activo ? `Sala ${s.numero} en mantenimiento: no se puede reservar` : `Sala ${s.numero} pasó a limpieza; quedará lista cuando la limpien`, 'ok'); cargarSalas() }
         } }, s.estado === 'MANTENIMIENTO' ? 'Reactivar' : 'Mantenimiento') : null,
       ))
     }
@@ -501,6 +532,7 @@ async function cargarLimpieza(forzar = true) {
       })
       box.append(h('article.card.order', { class: `${l.estado === 'EN_PROCESO' ? 'PREPARANDO' : ''}${nuevas.includes(l) ? ' nuevo' : ''}` },
         h('div.row.between', h('h3', { style: 'margin:0' }, `Sala ${l.sala.numero}`), badge(l.estado)),
+        h('div.small.muted', l.reservacionId ? 'Después de una visita' : 'Después de mantenimiento'),
         h('p', crono),
         h('div.row',
           l.estado === 'PENDIENTE' ? h('button.btn.sm', { type: 'button', onclick: paso('iniciar', 'Limpieza iniciada') }, 'Iniciar') : null,
@@ -527,7 +559,7 @@ async function cargarKpis() {
         contadores.map(([e, , el]) => h('div.card.tilt', h('div.muted.small', (ESTADOS[e] || [e])[0]), el))),
       h('div.card.table-wrap', { style: 'margin-top:16px' }, h('h3', 'Pagos por tipo y método'), h('table',
         h('thead', h('tr', ['Tipo', 'Método', 'Estado', 'Monto'].map((t) => h('th', t)))),
-        h('tbody', k.pagos.map((p) => h('tr', h('td', p.tipo.replace(/_/g, ' ').toLowerCase()), h('td', p.metodo.toLowerCase()), h('td', badge(p.estado)), h('td', money(p.monto))))))),
+        h('tbody', k.pagos.map((p) => h('tr', h('td', p.tipo.replace(/_/g, ' ').toLowerCase()), h('td', metodoTxt(p.metodo)), h('td', badge(p.estado)), h('td', money(p.monto))))))),
     ])
     fx.contar(ingresos, k.ingresosNetos, money, 0, 1200)
     for (const [, n, el] of contadores) fx.contar(el, n, (v) => String(Math.round(v)), 0, 900)
