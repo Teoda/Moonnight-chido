@@ -12,14 +12,22 @@ Sitio de clientes y panel del personal de Moonlight Karaoke & Social Lounge.
 - La app se renderiza en el navegador (`ssr = false` en [`src/routes/+layout.ts`](src/routes/+layout.ts)): el store de Redux
   vive en cada navegador y nunca se comparte entre usuarios en el servidor.
 
+## Variables de entorno (`.env`)
+El host del back se define en `moonlight-web/.env` (cópialo de `.env.example`; no se sube a git):
+```env
+API_URL=http://localhost:3000
+```
+Se declara y valida en [`src/env.ts`](src/env.ts) y el proxy la lee con `import { API_URL } from '$app/env/private'`.
+En desarrollo SvelteKit lee el `.env` solo; en producción `npm start` también lo carga.
+
 ## Desarrollo
 Primero levanta el back (`cd ../moonlight-db && npm run db:up && npm run dev`). Luego:
 ```bash
 npm install
-npm run dev          # http://localhost:5173  (usa API_URL=http://localhost:3000 por defecto)
+npm run dev          # http://localhost:5173
 npm run check        # verificación de tipos (svelte-check + TypeScript)
 ```
-Si el back corre en otro puerto: `API_URL=http://localhost:3002 npm run dev` (en PowerShell: `$env:API_URL="http://localhost:3002"; npm run dev`).
+Si el back corre en otro host o puerto, cambia `API_URL` en el `.env`.
 
 ## Producción
 ```bash

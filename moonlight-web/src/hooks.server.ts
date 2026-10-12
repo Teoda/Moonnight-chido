@@ -1,11 +1,9 @@
 // El servidor de SvelteKit sirve la app y reenvía /api/* al back de Express (moonlight-db).
 // Para el navegador todo vive en un mismo origen: las cookies HttpOnly de sesión (SameSite=Strict)
 // y el token CSRF funcionan igual que antes, sin abrir CORS.
-import process from 'node:process'
 import type { RequestEvent } from '@sveltejs/kit'
 import type { Handle } from '@sveltejs/kit/hooks'
-
-const API_URL = (process.env.API_URL || 'http://localhost:3000').replace(/\/$/, '')
+import { API_URL } from '$app/env/private' // host del back, del archivo .env (ver src/env.ts)
 
 // Encabezados "hop-by-hop": son de esta conexión y no deben reenviarse.
 const HOP = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host']
