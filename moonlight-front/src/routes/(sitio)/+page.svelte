@@ -12,7 +12,7 @@
 
 <svelte:head><title>Moonlight · Karaoke &amp; Social Lounge</title></svelte:head>
 
-<section class="grid items-center gap-8 pt-4 pb-8 md:grid-cols-[1.2fr_1fr] md:pt-10 md:pb-14">
+<section class="grid grid-cols-[minmax(0,1fr)] items-center gap-8 pt-4 pb-8 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] md:pt-10 md:pb-14">
   <div>
     <div class="mb-3.5 inline-flex items-center gap-2 rounded-full border border-line bg-[rgba(26,24,56,.6)] px-3.5 py-1.5 text-[.95rem] text-muted">
       <span class="dot-vivo" aria-hidden="true"></span>Esta noche suena <Rotador palabras={$cat?.tematicas.map((t) => t.nombre) ?? []} />
@@ -40,7 +40,7 @@
       </div>
     {/if}
   </div>
-  <div class="escena relative w-full max-w-[340px] justify-self-center md:max-w-[480px]">
+  <div class="escena relative w-full max-w-[300px] justify-self-center sm:max-w-[380px] md:max-w-[480px]">
     <img class="logo-img logo-hero w-full" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607" />
     <div class="notas pointer-events-none absolute inset-0" aria-hidden="true"><span>♪</span><span>♫</span><span>♪</span><span>♬</span></div>
     <div class="eq mt-4 flex h-[46px] items-end justify-center gap-1.5" aria-hidden="true">
@@ -83,7 +83,7 @@
 
 <section aria-labelledby="t-conocenos">
   <h2 id="t-conocenos" class="mt-11">Conócenos</h2>
-  <div class="mt-4 grid items-stretch gap-4 lg:grid-cols-[1.3fr_1fr]">
+  <div class="mt-4 grid grid-cols-[minmax(0,1fr)] items-stretch gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
     <figure class="card m-0 overflow-hidden p-0" use:revelar>
       <img class="block h-full min-h-60 w-full object-cover" src="/img/lugar/fachada.jpg" alt="Fachada de Moonlight iluminada de noche con letreros de neón" width="1200" height="675" loading="lazy" />
     </figure>
@@ -104,7 +104,7 @@
       <h3 class="m-0">📍 Ubicación</h3>
       <a class="btn sm primary" href="https://goo.gl/maps/VUutLXRjVrHx4v8Z6" target="_blank" rel="noopener">Cómo llegar · Google Maps</a>
     </div>
-    <div class="mapa mt-3.5 aspect-[16/7] min-h-[260px] overflow-hidden rounded-[10px] border border-line">
+    <div class="mapa mt-3.5 aspect-[4/3] sm:aspect-[16/7] sm:min-h-[260px] overflow-hidden rounded-[10px] border border-line">
       <iframe title="Mapa de la ubicación de Moonlight" src="https://maps.google.com/maps?q=19.024583,-98.198667&z=17&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
     </div>
   </div>
