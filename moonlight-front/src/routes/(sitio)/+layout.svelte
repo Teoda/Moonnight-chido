@@ -3,6 +3,7 @@
   import type { Snippet } from 'svelte'
   import { page } from '$app/state'
   import { goto } from '$app/navigation'
+  import { slide } from 'svelte/transition'
   import { alExpirarSesion, sesionDe } from '#lib/api/client.ts'
   import type { Usuario } from '#lib/api/types.ts'
   import { dispatch, seleccionar } from '#lib/store/index.ts'
@@ -26,6 +27,10 @@
   const lista = seleccionar((s) => s.mis.lista)
   let esAdmin = $state(false)
   let cambiarPw = $state(false)
+  let menu = $state(false) // menú desplegable en pantallas chicas
+
+  // al cambiar de página se cierra el menú
+  $effect(() => { void page.url.pathname; menu = false })
 
   const enlaces = [
     ['/', 'Inicio'], ['/salas', 'Salas'], ['/menu', 'Menú'], ['/reservar', 'Reservar'],
@@ -57,28 +62,43 @@
   const activo = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href))
 </script>
 
+{#snippet navegacion()}
+  {#each enlaces as [href, txt] (href)}
+    <a class="nav-link" class:active={activo(href)} aria-current={activo(href) ? 'page' : undefined} {href} onclick={() => (menu = false)}>{txt}</a>
+  {/each}
+  {#if $cliente}<a class="nav-link" class:active={activo('/mis-reservaciones')} href="/mis-reservaciones" onclick={() => (menu = false)}>Mis reservaciones</a>{/if}
+{/snippet}
+
+{#snippet cuenta()}
+  {#if $cliente}
+    <span class="muted small">Hola, {$cliente.nombre.split(' ')[0]}</span>
+    <button class="btn sm ghost" type="button" onclick={() => { menu = false; cambiarPw = true }}>Contraseña</button>
+    <button class="btn sm" type="button" onclick={() => { menu = false; salir() }}>Salir</button>
+  {:else}
+    <button class="btn sm" type="button" onclick={() => { menu = false; pedirSesion() }}>Iniciar sesión</button>
+  {/if}
+{/snippet}
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') menu = false }} />
+
 <header class="topbar">
-  <div class="wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-1.5 py-1.5 sm:py-0">
-    <a class="brand flex-1 sm:flex-none" href="/">
+  <div class="wrap flex min-h-16 items-center gap-4">
+    <a class="brand min-w-0" href="/">
       <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight
     </a>
-    <nav class="order-3 flex w-full flex-nowrap gap-1 overflow-x-auto sm:order-none sm:w-auto sm:flex-1" aria-label="Principal">
-      {#each enlaces as [href, txt] (href)}
-        <a class="nav-link" class:active={activo(href)} {href}>{txt}</a>
-      {/each}
-      {#if $cliente}<a class="nav-link" class:active={activo('/mis-reservaciones')} href="/mis-reservaciones">Mis reservaciones</a>{/if}
-    </nav>
-    <div class="flex flex-wrap items-center justify-end gap-2">
-      {#if $cliente}
-        <span class="muted small hidden sm:inline">Hola, {$cliente.nombre.split(' ')[0]}</span>
-        <button class="btn sm ghost" type="button" onclick={() => (cambiarPw = true)}>Contraseña</button>
-        <button class="btn sm" type="button" onclick={salir}>Salir</button>
-      {:else}
-        <button class="btn sm" type="button" onclick={() => pedirSesion()}>Iniciar sesión</button>
-      {/if}
-    </div>
+    <nav class="hidden flex-1 gap-1 lg:flex" aria-label="Principal">{@render navegacion()}</nav>
+    <div class="hidden items-center gap-2 lg:flex">{@render cuenta()}</div>
+    <button class="hamburguesa ml-auto lg:hidden" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
+      aria-expanded={menu} aria-controls="menu-movil" onclick={() => (menu = !menu)}><span></span><span></span><span></span></button>
   </div>
+  {#if menu}
+    <div id="menu-movil" class="menu-movil lg:hidden" transition:slide={{ duration: 220 }}>
+      <nav class="wrap flex flex-col gap-0.5 py-2" aria-label="Principal (móvil)">{@render navegacion()}</nav>
+      <div class="wrap flex flex-wrap items-center gap-2 border-t border-line py-3">{@render cuenta()}</div>
+    </div>
+  {/if}
 </header>
+{#if menu}<button class="menu-velo lg:hidden" type="button" aria-label="Cerrar menú" tabindex="-1" onclick={() => (menu = false)}></button>{/if}
 
 <main class="wrap pt-7 pb-16">
   {#key page.url.pathname}
@@ -87,7 +107,7 @@
 </main>
 
 <footer class="border-t border-line py-6 text-[.85rem] text-muted">
-  <div class="wrap row between">
+  <div class="wrap row between max-sm:flex-col max-sm:items-start max-sm:gap-2">
     <span>© Moonlight · <span class="tagline text-[.7rem]">Karaoke &amp; Social Lounge</span></span>
     <span>{resumenHorario($catalogo?.horarios)}</span>
     <a href="/#ubicacion">📍 Cómo llegar</a>

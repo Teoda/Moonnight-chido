@@ -73,7 +73,7 @@
     <code class="font-mono text-[1.4rem] tracking-[.08em] text-gold">{rv.codigo}</code>
     <Badge estado={rv.estado} />
   </div>
-  <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1">
+  <dl class="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 gap-y-1">
     <dt class="muted small">Cliente</dt><dd>{rv.cliente.nombre}{rv.cliente.telefono ? ` · ${rv.cliente.telefono}` : ''}</dd>
     <dt class="muted small">Horario</dt><dd>{fmtRango(rv.inicio, rv.fin)}{rv.finOriginal ? ` (original ${fmtHora(rv.finOriginal)})` : ''}</dd>
     <dt class="muted small">Sala</dt><dd>{rv.sala.numero} · {rv.sala.tipoSala?.nombre} <Badge estado={rv.sala.estado} /></dd>
@@ -174,7 +174,7 @@
   </Modal>
 {:else if modal === 'cerrada' && cuenta}
   <Modal abierto titulo="Cuenta cerrada · {rv.codigo}" onclose={() => (modal = '')}>
-    <dl class="m-0 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
+    <dl class="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5">
       <dt>Sala</dt><dd class="text-right">{money(cuenta.subtotalSala)}</dd>
       <dt>Tiempo extra</dt><dd class="text-right">{money(cuenta.subtotalExtras)}</dd>
       <dt>Pedidos anticipados</dt><dd class="text-right">{money(cuenta.subtotalPedidosAnticipados)}</dd>

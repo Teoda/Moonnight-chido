@@ -5,7 +5,7 @@
   const avisos = seleccionar((s) => s.ui.avisos)
 </script>
 
-<div class="fixed right-4 bottom-4 z-[100] grid max-w-[min(380px,calc(100%-32px))] gap-2" role="status" aria-live="polite">
+<div class="fixed right-3 bottom-3 left-3 z-[100] grid gap-2 sm:right-4 sm:bottom-4 sm:left-auto sm:w-[380px]" role="status" aria-live="polite">
   {#each $avisos as a (a.id)}
     <div class="toast {a.tipo}">{a.msg}</div>
   {/each}

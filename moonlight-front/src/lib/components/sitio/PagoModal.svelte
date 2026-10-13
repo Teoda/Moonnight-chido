@@ -74,7 +74,7 @@
     {#if resta !== null}
       <p><span class="vivo {resta < 5 * 60_000 ? 'bad' : 'warn'}">{resta > 0 ? `Tienes ${falta(resta)} para pagar` : 'Se venció el tiempo: la sala se liberó'}</span></p>
     {/if}
-    <dl class="mb-4 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
+    <dl class="mb-4 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5">
       <dt class="muted">Sala (total)</dt><dd class="text-right">{money(pago.totalSala)}</dd>
       <dt class="muted">Anticipo de la sala</dt><dd class="text-right">{money(pago.anticipoSala)}</dd>
       {#if num(pago.anticipo)}<dt class="muted">Anticipo del pedido</dt><dd class="text-right">{money(pago.anticipo)}</dd>{/if}

@@ -37,13 +37,13 @@
   aria-labelledby="dlg-titulo"
 >
   {#if abierto}
-    <div class="flex items-center justify-between border-b border-line px-5 py-4">
+    <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5 sm:px-5 sm:py-4">
       <h3 id="dlg-titulo" class="m-0">{titulo}</h3>
       <button type="button" class="x" aria-label="Cerrar" onclick={cerrar}>×</button>
     </div>
-    <div class="max-h-[70vh] overflow-auto p-5">{@render children()}</div>
+    <div class="max-h-[calc(100dvh-170px)] overflow-auto p-4 sm:max-h-[70vh] sm:p-5">{@render children()}</div>
     {#if pie}
-      <div class="flex justify-end gap-2 border-t border-line px-5 py-3.5">{@render pie()}</div>
+      <div class="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-5 sm:py-3.5">{@render pie()}</div>
     {/if}
   {/if}
 </dialog>

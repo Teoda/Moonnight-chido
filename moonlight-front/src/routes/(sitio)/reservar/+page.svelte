@@ -142,12 +142,12 @@
 {#if !$cat}
   <div class="skeleton"></div>
 {:else}
-<div class="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
   <div class="stack">
     <!-- 1. Sala y horario -->
     <div class="card">
       <h3>Elige el tamaño de tu sala</h3>
-      <div class="mb-4 grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-2.5" role="radiogroup" aria-label="Tamaño de la sala">
+      <div class="mb-4 grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5" role="radiogroup" aria-label="Tamaño de la sala">
         {#each $cat.tipos as tp (tp.id)}
           <button type="button" class="tamano" class:on={tp.id === $r.tipoSalaId} role="radio" aria-checked={tp.id === $r.tipoSalaId}
             onclick={() => elegirTipo(tp.id, tp.capacidadMax)}>
@@ -220,7 +220,7 @@
           {/each}
         </div>
         <label for="artista-0">Tus artistas favoritos <span class="muted">{$r.genero === 'lista' ? '(mínimo 3)' : '(opcional; si los escribes, mínimo 3)'}</span></label>
-        <div class="my-1.5 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2">
+        <div class="my-1.5 grid grid-cols-[repeat(auto-fill,minmax(min(160px,100%),1fr))] gap-2">
           {#each $r.artistas as a, i (i)}
             <input id="artista-{i}" type="text" maxlength="80" placeholder="Artista {i + 1}" aria-label="Artista {i + 1}" autocomplete="off"
               value={a} required={$r.genero === 'lista' && i < 3} oninput={(e) => dispatch(acciones.setArtista({ i, valor: e.currentTarget.value }))} />

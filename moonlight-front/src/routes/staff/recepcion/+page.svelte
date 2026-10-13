@@ -49,11 +49,11 @@
   }))
 </script>
 
-<div class="grid items-start gap-5 lg:grid-cols-[1fr_320px]">
+<div class="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
   <div class="stack">
     <div class="card">
       <form class="row" onsubmit={(e) => { e.preventDefault(); buscar() }}>
-        <input class="min-w-[200px] flex-1 uppercase" placeholder="Número de reservación (ML…)" maxlength="10" autocomplete="off" required bind:value={codigo} aria-label="Número de reservación" />
+        <input class="min-w-[min(200px,100%)] flex-1 basis-[200px] uppercase" placeholder="Número de reservación (ML…)" maxlength="10" autocomplete="off" required bind:value={codigo} aria-label="Número de reservación" />
         <button class="btn primary" type="submit">Buscar</button>
         <button class="btn" type="button" onclick={() => (mostrador = true)} disabled={!$cat}>+ Cliente sin registro</button>
       </form>

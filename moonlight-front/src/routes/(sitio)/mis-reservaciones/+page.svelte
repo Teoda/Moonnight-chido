@@ -247,7 +247,7 @@
       {/each}
     </div>
     <label class="mt-3.5" for="m-artista-0">Artistas favoritos</label>
-    <div class="my-1.5 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2">
+    <div class="my-1.5 grid grid-cols-[repeat(auto-fill,minmax(min(160px,100%),1fr))] gap-2">
       {#each mArtistas as _, i (i)}
         <input id="m-artista-{i}" type="text" maxlength="80" placeholder="Artista {i + 1}" aria-label="Artista {i + 1}" bind:value={mArtistas[i]} />
       {/each}
