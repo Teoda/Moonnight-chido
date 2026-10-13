@@ -18,6 +18,7 @@
   import EstadoCuenta from '#lib/components/sitio/EstadoCuenta.svelte'
   import CambiarPassword from '#lib/components/CambiarPassword.svelte'
   import { pedirSesion } from '#lib/components/sitio/auth.svelte.ts'
+  import Notificaciones from '#lib/components/sitio/Notificaciones.svelte'
 
   let { children }: { children: Snippet } = $props()
 
@@ -82,13 +83,14 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') menu = false }} />
 
 <header class="topbar">
-  <div class="wrap flex min-h-16 items-center gap-4">
+  <div class="wrap flex min-h-16 items-center gap-2.5 sm:gap-4">
     <a class="brand min-w-0" href="/">
       <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight
     </a>
     <nav class="hidden flex-1 gap-1 lg:flex" aria-label="Principal">{@render navegacion()}</nav>
+    <div class="ml-auto flex items-center gap-1.5 lg:ml-0"><Notificaciones /></div>
     <div class="hidden items-center gap-2 lg:flex">{@render cuenta()}</div>
-    <button class="hamburguesa ml-auto lg:hidden" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
+    <button class="hamburguesa lg:hidden" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
       aria-expanded={menu} aria-controls="menu-movil" onclick={() => (menu = !menu)}><span></span><span></span><span></span></button>
   </div>
   {#if menu}
