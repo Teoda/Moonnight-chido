@@ -1,8 +1,10 @@
 import { prisma } from './db'
 import { getConfig } from './disponibilidad'
 import { MIN } from './tiempo'
+import { asegurarReporteSemanal } from './reportes'
 
-/** Corre cada minuto: libera reservas sin pagar y marca no-show al pasar la tolerancia de llegada. */
+/** Corre cada minuto: libera reservas sin pagar, marca no-show al pasar la tolerancia de llegada
+ *  y genera el reporte financiero semanal en cuanto pasa el corte del domingo. */
 export async function mantenimiento() {
   const ahora = new Date()
   const cfg = await getConfig(prisma)
@@ -26,4 +28,5 @@ export async function mantenimiento() {
     ])
   }
   await prisma.sesion.deleteMany({ where: { expiraEn: { lt: ahora } } })
+  await asegurarReporteSemanal().catch((e) => console.error('[reporte semanal]', e)) // si falla, se reintenta al siguiente minuto
 }

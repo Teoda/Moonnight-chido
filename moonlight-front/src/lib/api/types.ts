@@ -99,3 +99,10 @@ export interface Kpis {
   pagos: { tipo: string; metodo: MetodoPago; estado: EstadoPago; monto: Dinero }[]
   reservacionesPorEstado: Record<string, number>
 }
+/** Reporte financiero semanal (solo Administración). El PDF se descarga de /api/staff/reportes/:id/pdf. */
+export interface ReporteSemanal {
+  id: number; desde: string; hasta: string; periodo: string; automatico: boolean; generadoEn: string
+  ingresos: { salas: number; tiempoExtra: number; alimentos: number; bebidas: number; paquetes: number; descuentos: number; retenciones: number; total: number }
+  ingresosAnterior: number; variacion: number | null
+  cobrado: number; visitas: number; pendiente: number; cancelaciones: number
+}

@@ -468,6 +468,21 @@ model Incidencia {
   @@map("incidencias")
 }
 
+// Reporte financiero semanal. Se genera solo cada domingo (ver src/reportes.ts) o a mano desde Administración.
+// `datos` guarda las cifras calculadas y `pdf` el documento tal como se generó (no cambia aunque cambien los datos).
+model ReporteSemanal {
+  id            Int      @id @default(autoincrement())
+  desde         DateTime @unique // corte de inicio (domingo 06:00, hora de México)
+  hasta         DateTime // corte de fin (domingo siguiente 06:00)
+  datos         Json
+  pdf           Bytes    @db.MediumBlob
+  automatico    Boolean  @default(true)
+  generadoEn    DateTime @default(now())
+  generadoPorId Int?
+
+  @@map("reportes_semanales")
+}
+
 model Configuracion {
   clave String @id @db.VarChar(50)
   valor String @db.VarChar(255)

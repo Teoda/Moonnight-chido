@@ -1,5 +1,5 @@
 // Personal autenticado por cookie de sesión. Todas las operaciones que modifican datos exigen CSRF.
-import { Router, type Request } from 'express'
+import { Router, type Request, type Response } from 'express'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db'
@@ -8,6 +8,7 @@ import { requireStaff, requireRol, csrf } from '../middleware/auth'
 import { crearReservacion, validarSlot, getConfig, hayConflicto, bloquean, validarMusica } from '../disponibilidad'
 import { armarItems } from '../pedidos'
 import { MIN, inicioDiaLocal, rangoMesLocal, ventanaQueContiene } from '../tiempo'
+import { crearPdf, datosReporte, etiquetaPeriodo, generarReporte, semanaQueTermina, ultimoCorte, variacion, type DatosReporte } from '../reportes'
 
 const r = Router()
 r.use(requireStaff, csrf)
@@ -325,6 +326,48 @@ r.get('/kpis', requireRol('FINANZAS'), ah(async (_req, res) => {
     pagos: filas.map((f) => ({ tipo: f.tipo, metodo: f.metodo, estado: f.estado, monto: f._sum.monto })),
     reservacionesPorEstado: Object.fromEntries(porEstado.map((g) => [g.estado, g._count])),
   })
+}))
+
+// ───────────── REPORTES SEMANALES (solo Administración) ─────────────
+const ADMIN = requireRol() // sin roles: solo ADMIN
+const enviarPdf = (res: Response, pdf: Uint8Array, nombre: string) => {
+  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${nombre}.pdf"` })
+  res.send(Buffer.from(pdf))
+}
+
+r.get('/reportes', ADMIN, ah(async (_req, res) => {
+  const lista = await prisma.reporteSemanal.findMany({
+    orderBy: { desde: 'desc' }, take: 52, select: { id: true, desde: true, hasta: true, automatico: true, generadoEn: true, datos: true },
+  })
+  res.json(lista.map(({ datos, ...x }) => {
+    const { actual: s, anterior: p } = datos as unknown as DatosReporte
+    return {
+      ...x, periodo: etiquetaPeriodo(s.desde, s.hasta),
+      ingresos: s.ingresos, ingresosAnterior: p.ingresos.total, variacion: variacion(s.ingresos.total, p.ingresos.total),
+      cobrado: s.cobros.neto, visitas: s.visitas, pendiente: s.pendientes.total,
+      cancelaciones: s.cancelaciones.porCliente + s.cancelaciones.vencidas + s.cancelaciones.noShow,
+    }
+  }))
+}))
+
+// Semana en curso hasta este momento (no se guarda): se compara con el mismo tramo de la semana anterior.
+r.get('/reportes/en-curso/pdf', ADMIN, ah(async (_req, res) => {
+  const desde = ultimoCorte(), hasta = new Date()
+  const pdf = await crearPdf(await datosReporte(desde, hasta), { automatico: false, preliminar: true })
+  enviarPdf(res, pdf, `moonlight-semana-en-curso-${hasta.toISOString().slice(0, 10)}`)
+}))
+
+r.get('/reportes/:id/pdf', ADMIN, ah(async (req, res) => {
+  const rep = await prisma.reporteSemanal.findUnique({ where: { id: idP(req) }, select: { pdf: true, desde: true } })
+  if (!rep) throw new HttpError(404, 'Reporte no encontrado')
+  enviarPdf(res, rep.pdf, `moonlight-reporte-semanal-${rep.desde.toISOString().slice(0, 10)}`)
+}))
+
+// Vuelve a generar el reporte de la última semana cerrada (p. ej. tras corregir un cobro).
+r.post('/reportes/generar', ADMIN, ah(async (req, res) => {
+  const { desde, hasta } = semanaQueTermina(ultimoCorte())
+  const rep = await generarReporte(desde, hasta, { automatico: false, usuarioId: yo(req).id })
+  res.status(201).json(rep)
 }))
 
 export default r
