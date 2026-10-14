@@ -51,7 +51,6 @@
     <button type="button" class={modo === 'login' ? 'text-texto! border-b-accent!' : ''} onclick={() => { modo = 'login'; error = '' }}>Iniciar sesión</button>
     <button type="button" class={modo === 'registro' ? 'text-texto! border-b-accent!' : ''} onclick={() => { modo = 'registro'; error = '' }}>Crear cuenta</button>
   </div>
-  {#if modo === 'login'}<p class="muted small">Clientes y personal de Moonlight entran aquí con su correo y contraseña.</p>{/if}
   <form onsubmit={enviar}>
     {#if modo === 'registro'}
       <div class="field"><label for="r-nombre">Nombre</label><input id="r-nombre" bind:value={nombre} required minlength="2" maxlength="120" autocomplete="name" /></div>

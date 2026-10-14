@@ -99,7 +99,6 @@
     {/if}
     <div hidden={elegida !== null}><TarjetaForm bind:this={form} /></div>
     <div class="err">{error}</div>
-    <p class="muted small mt-3">Pago de demostración: no se realiza ningún cargo real.</p>
 
     {#snippet pie()}
       <button type="button" class="btn ghost" onclick={despues}>Pagar después</button>
