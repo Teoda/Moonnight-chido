@@ -45,7 +45,7 @@
     dispatch(revisarCliente()).then((a) => { if (a.payload) dispatch(cargarMis({ silencioso: true })) })
     // "Panel de administración" solo aparece si en este navegador hay una sesión de Administración abierta
     // y NO hay un cliente con sesión en el sitio (las pestañas comparten cookies: un cliente nunca debe verlo)
-    sesionDe<{ usuario: Usuario }>('staff').then((d) => (esAdmin = d?.usuario.rol === 'ADMIN'))
+    sesionDe<{ usuario: Usuario }>('staff').then((d) => (esAdmin = d?.usuario.rol === 'ADMIN' || d?.usuario.rol === 'SUPERADMIN'))
     // reservaciones del cliente: se revisan cada 20 s en cualquier página para poder avisarle
     const revisar = setInterval(() => { if ($cliente && !document.hidden) dispatch(cargarMis({ silencioso: true })) }, 20_000)
     const tiempos = setInterval(() => dispatch(revisarTiempos() as never), 1000) // avisos de 10 / 5 min y fin

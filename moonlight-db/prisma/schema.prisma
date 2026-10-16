@@ -9,6 +9,7 @@ datasource db {
 
 // ───────────── ENUMS ─────────────
 enum Rol {
+  SUPERADMIN // control total: además de todo el panel, gestiona llaves del personal y ve los turnos
   ADMIN
   OPERACIONES
   FINANZAS
@@ -189,6 +190,7 @@ model Usuario {
   reservaciones    Reservacion[]
   pedidos          Pedido[]
   limpiezas        Limpieza[]
+  turnos           Turno[]
   sesiones         Sesion[]
 
   @@map("usuarios")
@@ -211,6 +213,20 @@ model Sesion {
   @@index([clienteId])
   @@index([expiraEn])
   @@map("sesiones")
+}
+
+// Turnos del personal: cada empleado inicia su turno al llegar y lo termina al irse (fin = null: en turno).
+model Turno {
+  id           Int       @id @default(autoincrement())
+  usuarioId    Int
+  inicio       DateTime  @default(now())
+  fin          DateTime?
+  terminadoPor Int? // si lo cerró el súper administrador en lugar del propio empleado
+  usuario      Usuario   @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId])
+  @@index([fin])
+  @@map("turnos")
 }
 
 // ───────────── PROMOCIONES ─────────────

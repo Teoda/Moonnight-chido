@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db'
 import { ah, HttpError, normTel } from '../util'
-import { requireStaff, requireRol, csrf } from '../middleware/auth'
+import { requireStaff, requireRol, requireSuper, csrf } from '../middleware/auth'
 import { crearReservacion, validarSlot, getConfig, hayConflicto, bloquean, validarMusica } from '../disponibilidad'
 import { armarItems } from '../pedidos'
 import { MIN, inicioDiaLocal, rangoMesLocal, ventanaQueContiene } from '../tiempo'
@@ -421,15 +421,53 @@ r.post('/reportes/generar', ADMIN, ah(async (req, res) => {
   res.status(201).json(rep)
 }))
 
-// ───────────── PERSONAL (llaves de acceso; solo Administración) ─────────────
-r.get('/personal', ADMIN, ah(async (_req, res) => {
+// ───────────── TURNOS (cada empleado inicia y termina el suyo) ─────────────
+const turnoAbierto = (usuarioId: number) => prisma.turno.findFirst({ where: { usuarioId, fin: null }, orderBy: { inicio: 'desc' } })
+
+r.get('/turno', ah(async (req, res) => { res.json(await turnoAbierto(yo(req).id)) }))
+
+r.post('/turno/iniciar', ah(async (req, res) => {
+  const id = yo(req).id
+  const abierto = await turnoAbierto(id)
+  if (abierto) return void res.json(abierto) // ya estaba en turno: no se duplica
+  res.status(201).json(await prisma.turno.create({ data: { usuarioId: id } }))
+}))
+
+r.post('/turno/terminar', ah(async (req, res) => {
+  const abierto = await turnoAbierto(yo(req).id)
+  if (!abierto) throw new HttpError(409, 'No tienes un turno iniciado')
+  res.json(await prisma.turno.update({ where: { id: abierto.id }, data: { fin: new Date() } }))
+}))
+
+// ───────────── PERSONAL Y TURNOS (solo súper administrador) ─────────────
+// Quién está en turno ahora y los turnos de los últimos días (por defecto 7, máximo 62).
+r.get('/turnos', requireSuper, ah(async (req, res) => {
+  const { dias } = z.object({ dias: z.coerce.number().int().min(1).max(62).default(7) }).parse(req.query)
+  const desde = new Date(Date.now() - dias * 864e5)
+  const sel = { id: true, inicio: true, fin: true, terminadoPor: true, usuario: { select: { id: true, nombre: true } } } as const
+  const [enTurno, historial] = await Promise.all([
+    prisma.turno.findMany({ where: { fin: null }, select: sel, orderBy: { inicio: 'asc' } }),
+    prisma.turno.findMany({ where: { inicio: { gte: desde } }, select: sel, orderBy: { inicio: 'desc' }, take: 500 }),
+  ])
+  res.json({ enTurno, historial })
+}))
+
+// El súper administrador termina el turno que alguien olvidó cerrar.
+r.post('/turnos/:id/terminar', requireSuper, ah(async (req, res) => {
+  const t = await prisma.turno.findUnique({ where: { id: idP(req) } })
+  if (!t) throw new HttpError(404, 'No existe ese turno')
+  if (t.fin) throw new HttpError(409, 'Ese turno ya terminó')
+  res.json(await prisma.turno.update({ where: { id: t.id }, data: { fin: new Date(), terminadoPor: yo(req).id } }))
+}))
+
+r.get('/personal', requireSuper, ah(async (_req, res) => {
   res.json(await prisma.usuario.findMany({
-    where: { activo: true, llaveHash: { not: null } }, select: { id: true, nombre: true, rol: true }, orderBy: { nombre: 'asc' },
+    where: { activo: true, llaveHash: { not: null } }, select: { id: true, nombre: true, rol: true }, orderBy: [{ rol: 'asc' }, { nombre: 'asc' }],
   }))
 }))
 
 // Genera una llave nueva de 8 dígitos (se muestra una sola vez) y cierra las sesiones abiertas de esa persona.
-r.post('/personal/:id/llave', ADMIN, ah(async (req, res) => {
+r.post('/personal/:id/llave', requireSuper, ah(async (req, res) => {
   const id = idP(req)
   const u = await prisma.usuario.findUnique({ where: { id } })
   if (!u || !u.activo || !u.llaveHash) throw new HttpError(404, 'No existe ese trabajador')

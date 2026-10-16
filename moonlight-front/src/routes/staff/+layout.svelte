@@ -13,8 +13,9 @@
   import { ROLES } from '#lib/utils/estados.ts'
   import { fmtReloj } from '#lib/utils/formato.ts'
   import { ahora } from '#lib/fx/efectos.ts'
-  import { pestanasDe } from '#lib/components/staff/panel.svelte.ts'
+  import { esSuper, pestanasDe } from '#lib/components/staff/panel.svelte.ts'
   import Personal from '#lib/components/staff/Personal.svelte'
+  import TurnoBarra from '#lib/components/staff/TurnoBarra.svelte'
 
   let { children }: { children: Snippet } = $props()
 
@@ -70,7 +71,7 @@
       <span class="badge accent">{ROLES[$usuario.rol] || $usuario.rol}</span>
       <div class="hidden items-center gap-2 md:flex">
         <span class="small">{$usuario.nombre}</span>
-        {#if $usuario.rol === 'ADMIN'}<button class="btn sm ghost" type="button" onclick={() => (personal = true)}>Personal</button>{/if}
+        {#if esSuper($usuario.rol)}<button class="btn sm ghost" type="button" onclick={() => (personal = true)}>Personal</button>{/if}
         <button class="btn sm" type="button" onclick={() => dispatch(salirStaff(false))}>Salir</button>
       </div>
       <button class="hamburguesa md:hidden" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
@@ -90,7 +91,7 @@
         <span class="small">{$usuario.nombre}</span>
         <span class="reloj small sm:hidden">{fmtReloj($ahora)}</span>
         <div class="flex-1"></div>
-        {#if $usuario.rol === 'ADMIN'}<button class="btn sm ghost" type="button" onclick={() => { menu = false; personal = true }}>Personal</button>{/if}
+        {#if esSuper($usuario.rol)}<button class="btn sm ghost" type="button" onclick={() => { menu = false; personal = true }}>Personal</button>{/if}
         <button class="btn sm" type="button" onclick={() => { menu = false; dispatch(salirStaff(false)) }}>Salir</button>
       </div>
     </div>
@@ -125,6 +126,7 @@
       <p class="muted small mt-4 text-center">¿Eres cliente? <a href="/">Entra desde el sitio</a>.</p>
     </div>
   {:else}
+    {#if !esSuper($usuario.rol)}<TurnoBarra />{/if}
     <nav class="tabs mb-4.5 hidden flex-wrap gap-1.5 border-b border-line md:flex" aria-label="Secciones">
       {#each tabs as t (t.ruta)}
         <a href="/staff/{t.ruta}" class:on={page.url.pathname === `/staff/${t.ruta}`}>{t.titulo}</a>
@@ -138,7 +140,7 @@
   {/if}
 </main>
 
-{#if $usuario?.rol === 'ADMIN'}<Personal bind:abierto={personal} yo={$usuario.id} />{/if}
+{#if esSuper($usuario?.rol)}<Personal bind:abierto={personal} yo={$usuario.id} />{/if}
 
 <style>
   .llave { letter-spacing: .35em; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
