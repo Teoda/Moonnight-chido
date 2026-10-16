@@ -5,13 +5,14 @@
 2. Copia `.env.example` a `.env` (en Windows: `copy .env.example .env`)
 3. `npm run db:up`                          (MySQL en Docker, puerto 3309)
 4. `npx prisma migrate dev`                 (crea las tablas)
-5. `npm run db:seed`                        (salas, menú, promos, horario, configuración, usuarios de prueba)
+5. `npm run db:seed`                        (salas, menú, promos, horario, configuración)
+6. `npm run personal:crear`                  (personal: nombre + llave de 8 dígitos; las llaves se muestran una sola vez)
 6. `npm run dev`                            (API en http://localhost:4000; el sitio lo sirve `../moonlight-front` en el 3000)
 
 > Si ya habías hecho migraciones con la versión anterior del esquema: `npm run db:reset` (borra datos de prueba y recrea todo).
 
 HeidiSQL → MySQL (TCP/IP) · 127.0.0.1 · puerto 3309 · moonlight / moonlight_pass · base moonlight
-Usuarios de prueba (contraseña `Moonlight2026!`): admin@, recepcion@, barra@, operaciones@, limpieza@ moonlight.mx
+El personal entra al panel (/staff) con su nombre y su llave de 8 dígitos. Administración genera llaves nuevas en «Personal».
 
 ## Reglas de negocio implementadas
 - **Horario:** lunes a sábado, 12:00 a 02:00; domingo cerrado (tabla `horarios_operacion`, se define en `prisma/seed.ts`). **Para pruebas** `HORARIO_24H=true` en `.env` + `npm run db:seed` abre los 7 días las 24 h (las reservaciones pueden cruzar la medianoche); quítalo y vuelve a correr el seed para el horario real. Los horarios de inicio van cada 30 min; duración de 1 a 4 h.

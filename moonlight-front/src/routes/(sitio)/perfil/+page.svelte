@@ -6,6 +6,7 @@
   import { dispatch, seleccionar } from '#lib/store/index.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { tarjetaTxt } from '#lib/utils/tarjeta.ts'
+  import { numCliente } from '#lib/utils/formato.ts'
   import CambiarPassword from '#lib/components/CambiarPassword.svelte'
   import { confirmar } from '#lib/components/confirmar.svelte.ts'
   import { pedirSesion } from '#lib/components/sitio/auth.svelte.ts'
@@ -56,9 +57,11 @@
     <section class="card" aria-labelledby="t-datos">
       <h3 id="t-datos">Datos de la cuenta</h3>
       <dl class="datos">
+        <dt>Número de cliente</dt><dd class="numero">{numCliente($cliente.id)}</dd>
         <dt>Nombre</dt><dd>{$cliente.nombre}</dd>
         <dt>Correo</dt><dd>{$cliente.email ?? '—'}</dd>
       </dl>
+      <p class="muted small mt-3 mb-0">Si reservas directamente en Moonlight, da tu número de cliente en recepción para que esa visita cuente en tus promociones.</p>
     </section>
 
     <section class="card" aria-labelledby="t-seguridad">
@@ -96,13 +99,14 @@
   </div>
 {/if}
 
-<CambiarPassword bind:abierto={cambiarPw} ambito="cliente" />
+<CambiarPassword bind:abierto={cambiarPw} />
 
 <style>
   .perfil { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
   .datos { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; margin: 0; }
   .datos dt { color: var(--muted); }
   .datos dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .datos .numero { color: var(--gold); font-weight: 700; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
   .lista { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
   .lista li {
     display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 12px;

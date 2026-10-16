@@ -8,6 +8,8 @@ import { requireStaff, requireRol, csrf } from '../middleware/auth'
 import { crearReservacion, validarSlot, getConfig, hayConflicto, bloquean, validarMusica } from '../disponibilidad'
 import { armarItems } from '../pedidos'
 import { MIN, inicioDiaLocal, rangoMesLocal, ventanaQueContiene } from '../tiempo'
+import { nuevaLlave } from '../llaves'
+import bcrypt from 'bcryptjs'
 import { crearPdf, datosReporte, etiquetaPeriodo, generarReporte, semanaQueTermina, ultimoCorte, variacion, type DatosReporte } from '../reportes'
 
 const r = Router()
@@ -47,17 +49,63 @@ r.get('/reservaciones/buscar/:codigo', RECEP, ah(async (req, res) => {
   res.json({ ...rv, saldoSala: saldoSala(rv) })
 }))
 
-// Reservar en el establecimiento SIN registro del cliente (solo nombre; teléfono opcional).
+// ───────────── CLIENTES (número de cliente = su id; se muestra como MC-0023) ─────────────
+/** Acepta "MC-0023", "mc23" o "23". */
+const numeroClienteZ = z.union([z.number(), z.string()])
+  .transform((v) => Number(String(v).trim().toUpperCase().replace(/^MC-?/, '')))
+  .refine((n) => Number.isInteger(n) && n > 0, 'Número de cliente inválido')
+const datosCliente = async (id: number) => {
+  const c = await prisma.cliente.findUnique({ where: { id }, select: { id: true, nombre: true, telefono: true, email: true } })
+  if (!c) throw new HttpError(404, 'No existe un cliente con ese número')
+  const { desde, hasta } = rangoMesLocal(new Date())
+  const [visitasMes, visitas] = await Promise.all([
+    prisma.reservacion.count({ where: { clienteId: id, estado: 'FINALIZADA', inicio: { gte: desde, lt: hasta } } }),
+    prisma.reservacion.count({ where: { clienteId: id, estado: 'FINALIZADA' } }),
+  ])
+  return { id: c.id, nombre: c.nombre, telefono: c.telefono, registrado: !!c.email, visitasMes, visitas }
+}
+
+// Recepción consulta a un cliente por su número (al reservar en el establecimiento).
+r.get('/clientes/:numero', RECEP, ah(async (req, res) => {
+  res.json(await datosCliente(numeroClienteZ.parse(req.params.numero)))
+}))
+
+// Une al cliente registrado las visitas que hizo en el establecimiento antes de crear su cuenta.
+// Se identifica la visita por su número de reservación; se mueven TODAS las reservaciones de ese registro
+// de mostrador (sin cuenta) y, si la cuenta no tiene teléfono, también su teléfono. No se borra nada.
+r.post('/clientes/vincular', RECEP, ah(async (req, res) => {
+  const b = z.object({ codigo: codigoZ, numero: numeroClienteZ }).parse(req.body)
+  const rv = await prisma.reservacion.findUnique({ where: { codigo: b.codigo }, include: { cliente: true } })
+  if (!rv) throw new HttpError(404, 'No existe una reservación con ese número')
+  const origen = rv.cliente
+  if (origen.id === b.numero) throw new HttpError(409, 'Esa reservación ya pertenece a ese cliente')
+  if (origen.email) throw new HttpError(409, `Esa reservación es de otra cuenta registrada (MC-${String(origen.id).padStart(4, '0')})`)
+  const destino = await prisma.cliente.findUnique({ where: { id: b.numero } })
+  if (!destino) throw new HttpError(404, 'No existe un cliente con ese número')
+  if (!destino.email) throw new HttpError(409, 'El número de cliente debe ser de una cuenta registrada en la página')
+  const movidas = await prisma.$transaction(async (tx) => {
+    const m = await tx.reservacion.updateMany({ where: { clienteId: origen.id }, data: { clienteId: destino.id } })
+    if (origen.telefono && !destino.telefono) {
+      await tx.cliente.update({ where: { id: origen.id }, data: { telefono: null } })
+      await tx.cliente.update({ where: { id: destino.id }, data: { telefono: origen.telefono } })
+    }
+    return m.count
+  })
+  res.json({ movidas, cliente: await datosCliente(destino.id) })
+}))
+
+// Reservar en el establecimiento: con número de cliente, o sin registro (solo nombre; teléfono opcional).
 r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
   const b = z.object({
-    nombre: z.string().trim().min(2).max(120),
+    numeroCliente: numeroClienteZ.optional(),
+    nombre: z.string().trim().max(120).optional(),
     telefono: z.string().transform(normTel).refine((t) => t === '' || t.length === 10, 'Teléfono de 10 dígitos').optional(),
     personas: z.number().int().min(1).max(16), tipoSalaId: z.number().int().positive().optional(), salaNumero: z.number().int().optional(),
     tematicaId: z.number().int().positive().optional(), artistas: z.array(z.string().trim().max(80)).max(10).optional(),
     canciones: z.array(z.string().trim().max(120)).max(20).optional(),
     duracionMin: z.number().int().min(60).max(240), inicio: z.coerce.date().optional(), metodo: metodoZ,
     cortesiaProductoId: z.number().int().positive().optional(),
-  }).parse(req.body)
+  }).refine((x) => x.numeroCliente || (x.nombre?.length ?? 0) >= 2, 'Escribe el nombre del cliente o su número de cliente').parse(req.body)
   const ahoraMin = new Date(Math.floor(Date.now() / MIN) * MIN)
   const iniciarAhora = !b.inicio
   const inicio = b.inicio ?? ahoraMin
@@ -66,7 +114,10 @@ r.post('/reservaciones/mostrador', RECEP, ah(async (req, res) => {
   await validarSlot(prisma, inicio, fin, { mostrador: true })
   const musica = await validarMusica(prisma, b, { obligatoria: false }) // en mostrador la música puede definirse después
   const tel = b.telefono || null
-  const cliente = (tel && (await prisma.cliente.findUnique({ where: { telefono: tel } }))) || (await prisma.cliente.create({ data: { nombre: b.nombre, telefono: tel } }))
+  const cliente = b.numeroCliente
+    ? await prisma.cliente.findUnique({ where: { id: b.numeroCliente } })
+    : (tel && (await prisma.cliente.findUnique({ where: { telefono: tel } }))) || (await prisma.cliente.create({ data: { nombre: b.nombre!, telefono: tel } }))
+  if (!cliente) throw new HttpError(404, 'No existe un cliente con ese número')
   const x = await crearReservacion({ clienteId: cliente.id, personas: b.personas, tipoSalaId: b.tipoSalaId, salaNumero: b.salaNumero, inicio, fin, canal: 'MOSTRADOR', creadaPorId: yo(req).id, mostrador: { metodo: b.metodo, iniciarAhora }, cortesiaProductoId: b.cortesiaProductoId, musica })
   res.status(201).json({ codigo: x.reservacion.codigo, sala: x.sala.numero, estado: x.reservacion.estado, cobrado: x.subtotalSala, inicio, fin })
 }))
@@ -368,6 +419,25 @@ r.post('/reportes/generar', ADMIN, ah(async (req, res) => {
   const { desde, hasta } = semanaQueTermina(ultimoCorte())
   const rep = await generarReporte(desde, hasta, { automatico: false, usuarioId: yo(req).id })
   res.status(201).json(rep)
+}))
+
+// ───────────── PERSONAL (llaves de acceso; solo Administración) ─────────────
+r.get('/personal', ADMIN, ah(async (_req, res) => {
+  res.json(await prisma.usuario.findMany({
+    where: { activo: true, llaveHash: { not: null } }, select: { id: true, nombre: true, rol: true }, orderBy: { nombre: 'asc' },
+  }))
+}))
+
+// Genera una llave nueva de 8 dígitos (se muestra una sola vez) y cierra las sesiones abiertas de esa persona.
+r.post('/personal/:id/llave', ADMIN, ah(async (req, res) => {
+  const id = idP(req)
+  const u = await prisma.usuario.findUnique({ where: { id } })
+  if (!u || !u.activo || !u.llaveHash) throw new HttpError(404, 'No existe ese trabajador')
+  const llave = nuevaLlave()
+  await prisma.usuario.update({ where: { id }, data: { llaveHash: await bcrypt.hash(llave, 12), intentosFallidos: 0, bloqueadoHasta: null } })
+  // si es la propia llave, se conserva la sesión actual
+  await prisma.sesion.deleteMany({ where: { usuarioId: id, ...(id === yo(req).id ? { id: { not: req.auth!.sesion.id } } : {}) } })
+  res.json({ nombre: u.nombre, llave })
 }))
 
 export default r

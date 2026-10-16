@@ -14,6 +14,10 @@ export type Acceso = { tipo: 'staff'; usuario: Usuario } | { tipo: 'cliente'; cl
 export const iniciarSesion = createAsyncThunk('sesion/iniciar', async (b: { email: string; password: string }) =>
   api.post<Acceso>('/acceso/login', b))
 
+// ── personal: nombre + llave de 8 dígitos ──
+export const iniciarPersonal = createAsyncThunk('sesion/iniciarPersonal', async (b: { usuarioId: number; llave: string }) =>
+  (await api.post<{ tipo: 'staff'; usuario: Usuario }>('/acceso/personal/login', b)).usuario)
+
 // ── cliente ──
 export const revisarCliente = createAsyncThunk('sesion/revisarCliente', async () =>
   (await sesionDe<{ cliente: Cliente }>('cliente'))?.cliente ?? null)
@@ -33,9 +37,6 @@ export const salirCliente = createAsyncThunk('sesion/salirCliente', async () => 
 // ── personal ──
 export const revisarStaff = createAsyncThunk('sesion/revisarStaff', async () =>
   (await sesionDe<{ usuario: Usuario }>('staff'))?.usuario ?? null)
-
-export const loginStaff = createAsyncThunk('sesion/loginStaff', async (b: { email: string; password: string }) =>
-  (await api.post<{ usuario: Usuario }>('/auth/login', b)).usuario)
 
 export const salirStaff = createAsyncThunk('sesion/salirStaff', async (todas: boolean) => {
   await api.post(todas ? '/auth/logout-todas' : '/auth/logout').catch(() => {})
@@ -61,7 +62,7 @@ const slice = createSlice({
     b.addCase(registrarCliente.fulfilled, (s, a) => { s.cliente = a.payload })
     b.addCase(salirCliente.fulfilled, (s) => { s.cliente = null })
     b.addCase(revisarStaff.fulfilled, (s, a) => { s.usuario = a.payload; s.revisada.staff = true })
-    b.addCase(loginStaff.fulfilled, (s, a) => { s.usuario = a.payload })
+    b.addCase(iniciarPersonal.fulfilled, (s, a) => { s.usuario = a.payload; s.revisada.staff = true })
     b.addCase(salirStaff.fulfilled, (s) => { s.usuario = null })
   },
 })

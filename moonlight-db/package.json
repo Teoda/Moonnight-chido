@@ -13,7 +13,8 @@
     "db:reset": "prisma migrate reset",
     "typecheck": "tsc --noEmit",
     "db:validate": "prisma validate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "personal:crear": "tsx prisma/personal.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",

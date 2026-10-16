@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
 import { CARTA } from './carta'
 
 const prisma = new PrismaClient()
@@ -91,21 +90,9 @@ async function main() {
   for (const [clave, valor] of Object.entries(config))
     await prisma.configuracion.upsert({ where: { clave }, update: {}, create: { clave, valor } })
 
-  // Usuarios de prueba (cambia las contraseñas antes de producción)
-  if (process.env.NODE_ENV === 'production' && (!process.env.SEED_PASSWORD || process.env.SEED_PASSWORD === 'Moonlight2026!'))
-    throw new Error('En producción define un SEED_PASSWORD propio (no el de ejemplo).')
-  const passwordHash = await bcrypt.hash(process.env.SEED_PASSWORD ?? 'Moonlight2026!', 10)
-  const usuarios = [
-    { nombre: 'Administración', email: 'admin@moonlight.mx', rol: 'ADMIN' },
-    { nombre: 'Recepción', email: 'recepcion@moonlight.mx', rol: 'RECEPCION' },
-    { nombre: 'Barra', email: 'barra@moonlight.mx', rol: 'BARRA' },
-    { nombre: 'Operaciones', email: 'operaciones@moonlight.mx', rol: 'OPERACIONES' },
-    { nombre: 'Limpieza', email: 'limpieza@moonlight.mx', rol: 'LIMPIEZA' },
-  ] as const
-  for (const u of usuarios)
-    await prisma.usuario.upsert({ where: { email: u.email }, update: {}, create: { ...u, passwordHash } })
+  // El personal ya no se crea aquí: entra con nombre + llave de 8 dígitos (npm run personal:crear).
 
-  console.log(`Seed listo: tipos, temáticas, 15 salas con foto, carta (${CARTA.length} productos), promociones, horario, configuración y usuarios.`)
+  console.log(`Seed listo: tipos, temáticas, 15 salas con foto, carta (${CARTA.length} productos), promociones, horario y configuración. Personal: npm run personal:crear`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) }).finally(() => prisma.$disconnect())

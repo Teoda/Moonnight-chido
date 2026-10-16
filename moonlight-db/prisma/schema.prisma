@@ -176,8 +176,11 @@ model Cliente {
 model Usuario {
   id               Int           @id @default(autoincrement())
   nombre           String        @db.VarChar(120)
-  email            String        @unique @db.VarChar(150)
-  passwordHash     String        @db.VarChar(100)
+  // Acceso del personal: nombre + llave de 8 dígitos (solo se guarda su hash). Las cuentas anteriores por área
+  // (correo + contraseña) se conservan desactivadas para no perder el historial de quién hizo cada operación.
+  email            String?       @unique @db.VarChar(150)
+  passwordHash     String?       @db.VarChar(100)
+  llaveHash        String?       @db.VarChar(100)
   rol              Rol
   activo           Boolean       @default(true)
   intentosFallidos Int           @default(0)
