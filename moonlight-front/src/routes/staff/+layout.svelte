@@ -7,23 +7,22 @@
   import { alExpirarSesion } from '#lib/api/client.ts'
   import { dispatch, seleccionar } from '#lib/store/index.ts'
   import { cargarCatalogo } from '#lib/store/catalogo.ts'
-  import { iniciarSesion, revisarStaff, salirStaff, staffExpirado } from '#lib/store/sesion.ts'
-  import { cargarMis } from '#lib/store/mis.ts'
+  import { api } from '#lib/api/client.ts'
+  import { iniciarPersonal, revisarStaff, salirStaff, staffExpirado } from '#lib/store/sesion.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { ROLES } from '#lib/utils/estados.ts'
   import { fmtReloj } from '#lib/utils/formato.ts'
   import { ahora } from '#lib/fx/efectos.ts'
   import { pestanasDe } from '#lib/components/staff/panel.svelte.ts'
-  import CampoPassword from '#lib/components/CampoPassword.svelte'
-  import CambiarPassword from '#lib/components/CambiarPassword.svelte'
+  import Personal from '#lib/components/staff/Personal.svelte'
 
   let { children }: { children: Snippet } = $props()
 
   const usuario = seleccionar((s) => s.sesion.usuario)
   const revisada = seleccionar((s) => s.sesion.revisada.staff)
   const tabs = $derived(pestanasDe($usuario?.rol))
-  let email = $state(''), password = $state(''), error = $state(''), enviando = $state(false)
-  let cambiarPw = $state(false)
+  let error = $state(''), enviando = $state(false)
+  let personal = $state(false) // ventana Personal (llaves), solo Administración
   let menu = $state(false) // menú desplegable en pantallas chicas
   $effect(() => { void page.url.pathname; menu = false })
 
@@ -36,20 +35,23 @@
     dispatch(cargarCatalogo())
   })
 
-  // Inicio de sesión unificado: con credenciales del personal se entra al panel; con las de un cliente,
-  // se le lleva a sus reservaciones en el sitio.
+  // ── acceso: nombre del trabajador + llave de 8 números ──
+  let nombres = $state<{ id: number; nombre: string }[] | null>(null)
+  let usuarioId = $state(''), llave = $state('')
+  $effect(() => {
+    if ($revisada && !$usuario && !nombres)
+      api.get<{ id: number; nombre: string }[]>('/acceso/personal').then((l) => (nombres = l), () => (nombres = []))
+  })
+
   async function entrar(e: SubmitEvent) {
     e.preventDefault()
-    error = ''; enviando = true
+    error = ''
+    if (!/^\d{8}$/.test(llave)) { error = 'La llave tiene 8 números'; return }
+    enviando = true
     try {
-      const r = await dispatch(iniciarSesion({ email, password })).unwrap()
-      password = ''
-      if (r.tipo === 'cliente') {
-        dispatch(cargarMis({ silencioso: true }))
-        dispatch(avisar(`Bienvenido, ${r.cliente.nombre.split(' ')[0]}`, 'ok'))
-        goto('/mis-reservaciones')
-      }
-    } catch (x) { error = (x as Error).message } finally { enviando = false }
+      await dispatch(iniciarPersonal({ usuarioId: Number(usuarioId), llave })).unwrap()
+      llave = ''
+    } catch (x) { error = (x as Error).message; llave = '' } finally { enviando = false }
   }
 </script>
 
@@ -68,7 +70,7 @@
       <span class="badge accent">{ROLES[$usuario.rol] || $usuario.rol}</span>
       <div class="hidden items-center gap-2 md:flex">
         <span class="small">{$usuario.nombre}</span>
-        <button class="btn sm ghost" type="button" onclick={() => (cambiarPw = true)}>Contraseña</button>
+        {#if $usuario.rol === 'ADMIN'}<button class="btn sm ghost" type="button" onclick={() => (personal = true)}>Personal</button>{/if}
         <button class="btn sm" type="button" onclick={() => dispatch(salirStaff(false))}>Salir</button>
       </div>
       <button class="hamburguesa md:hidden" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
@@ -88,7 +90,7 @@
         <span class="small">{$usuario.nombre}</span>
         <span class="reloj small sm:hidden">{fmtReloj($ahora)}</span>
         <div class="flex-1"></div>
-        <button class="btn sm ghost" type="button" onclick={() => { menu = false; cambiarPw = true }}>Contraseña</button>
+        {#if $usuario.rol === 'ADMIN'}<button class="btn sm ghost" type="button" onclick={() => { menu = false; personal = true }}>Personal</button>{/if}
         <button class="btn sm" type="button" onclick={() => { menu = false; dispatch(salirStaff(false)) }}>Salir</button>
       </div>
     </div>
@@ -102,15 +104,25 @@
   {:else if !$usuario}
     <div class="card pad-lg mx-auto my-[8vh] max-w-[400px]">
       <img class="logo-img mx-auto -mt-1.5 mb-2 w-full max-w-[300px]" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607" />
-      <h2 class="text-center text-[1.3rem]">Iniciar sesión</h2>
-      <p class="muted small text-center">Personal o cliente: entra con tu correo y contraseña.</p>
+      <h2 class="text-center text-[1.3rem]">Acceso del personal</h2>
+      <p class="muted small text-center">Elige tu nombre y escribe tu llave de 8 números.</p>
       <form onsubmit={entrar}>
-        <div class="field"><label for="l-email">Correo</label><input id="l-email" type="email" bind:value={email} required autocomplete="username" /></div>
-        <CampoPassword id="l-pw" etiqueta="Contraseña" bind:valor={password} />
-        <div class="err">{error}</div>
-        <button class="btn primary w-full justify-center" type="submit" disabled={enviando}>Entrar</button>
+        <div class="field">
+          <label for="l-nombre">Trabajador</label>
+          <select id="l-nombre" bind:value={usuarioId} required disabled={!nombres}>
+            <option value="" disabled>{nombres ? 'Elige tu nombre' : 'Cargando…'}</option>
+            {#each nombres ?? [] as n (n.id)}<option value={String(n.id)}>{n.nombre}</option>{/each}
+          </select>
+        </div>
+        <div class="field">
+          <label for="l-llave">Llave de acceso</label>
+          <input id="l-llave" class="llave" type="password" inputmode="numeric" autocomplete="off" maxlength="8" required
+            value={llave} oninput={(e) => (llave = e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 8))} />
+        </div>
+        <div class="err" role="alert">{error}</div>
+        <button class="btn primary w-full justify-center" type="submit" disabled={enviando || !usuarioId || llave.length !== 8}>Entrar</button>
       </form>
-      <p class="muted small mt-4"><a href="/">← Volver al sitio</a></p>
+      <p class="muted small mt-4 text-center">¿Eres cliente? <a href="/">Entra desde el sitio</a>.</p>
     </div>
   {:else}
     <nav class="tabs mb-4.5 hidden flex-wrap gap-1.5 border-b border-line md:flex" aria-label="Secciones">
@@ -126,4 +138,8 @@
   {/if}
 </main>
 
-<CambiarPassword bind:abierto={cambiarPw} ambito="staff" />
+{#if $usuario?.rol === 'ADMIN'}<Personal bind:abierto={personal} yo={$usuario.id} />{/if}
+
+<style>
+  .llave { letter-spacing: .35em; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+</style>

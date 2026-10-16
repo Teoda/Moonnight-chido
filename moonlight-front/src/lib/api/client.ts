@@ -36,10 +36,10 @@ http.interceptors.request.use((cfg) => {
 
 http.interceptors.response.use(
   (res) => {
-    // Cada login / "me" trae el token CSRF de su sesión. El login unificado (/acceso/login) dice en `tipo`
-    // qué sesión abrió (personal o cliente).
+    // Cada login / "me" trae el token CSRF de su sesión. Los inicios de sesión de /acceso dicen en `tipo`
+    // qué sesión abrieron (personal o cliente).
     const d = res.data && typeof res.data === 'object' ? res.data : null
-    const amb = res.config.url === '/acceso/login' && (d?.tipo === 'staff' || d?.tipo === 'cliente') ? (d.tipo as Ambito) : ambitoDe(res.config.url)
+    const amb = res.config.url?.startsWith('/acceso/') && (d?.tipo === 'staff' || d?.tipo === 'cliente') ? (d.tipo as Ambito) : ambitoDe(res.config.url)
     if (amb && d && 'csrfToken' in d) csrf[amb] = d.csrfToken
     return res
   },

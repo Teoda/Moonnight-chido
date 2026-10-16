@@ -37,3 +37,6 @@ export function falta(ms: number) {
 }
 
 export const lineas = (txt: string | null | undefined) => (txt || '').split('\n').map((x) => x.trim()).filter(Boolean)
+
+/** Número de cliente para mostrar: el id con formato MC-0023 (recepción lo usa para encontrar al cliente). */
+export const numCliente = (id: number) => `MC-${String(id).padStart(4, '0')}`

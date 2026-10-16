@@ -26,7 +26,7 @@
 1. HTTPS obligatorio (Caddy, Nginx + Let's Encrypt, Cloudflare o el hosting). Sin HTTPS la cookie `Secure` no funciona.
 2. `NODE_ENV=production`, `ALLOWED_ORIGINS=https://tu-dominio`, `TRUST_PROXY=1` (si hay proxy delante).
 3. `SESSION_SECRET` nuevo de 48+ bytes (comando en `.env.example`). Nunca subir `.env` a Git.
-4. Cambiar las contraseñas de los usuarios de prueba (`SEED_PASSWORD` propio; el seed se niega a usar la de ejemplo en producción).
+4. Crear al personal con `npm run personal:crear` (llaves de 8 dígitos al azar; solo se guarda su hash) y entregar cada llave en persona. Esto desactiva las cuentas anteriores por área (correo + contraseña).
 5. MySQL NO expuesto a Internet (sin puerto público) y un usuario de BD propio sin `GRANT ALL *.*` (ese permiso es solo para el entorno de desarrollo).
 6. Si la presentación necesita el pago simulado: `PAGOS_SIMULADOS=true`. Con pagos reales, confirmar solo por webhook firmado.
 

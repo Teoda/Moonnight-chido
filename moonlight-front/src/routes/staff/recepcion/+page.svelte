@@ -10,6 +10,7 @@
   import Badge from '#lib/components/Badge.svelte'
   import DetalleReservacion from '#lib/components/staff/DetalleReservacion.svelte'
   import Mostrador from '#lib/components/staff/Mostrador.svelte'
+  import VincularVisitas from '#lib/components/staff/VincularVisitas.svelte'
   import MetodoPago from '#lib/components/staff/MetodoPago.svelte'
   import { recepcion } from '#lib/components/staff/panel.svelte.ts'
 
@@ -20,6 +21,7 @@
   let porCobrar = $state<PedidoBarra[] | null>(null), errorCobrar = $state('')
   let metodos = $state<Record<number, MetodoMostrador>>({})
   let mostrador = $state(false)
+  let vincular = $state(false)
 
   async function buscar(c = codigo) {
     c = (c || '').trim().toUpperCase()
@@ -55,7 +57,8 @@
       <form class="row" onsubmit={(e) => { e.preventDefault(); buscar() }}>
         <input class="min-w-[min(200px,100%)] flex-1 basis-[200px] uppercase" placeholder="Número de reservación (ML…)" maxlength="10" autocomplete="off" required bind:value={codigo} aria-label="Número de reservación" />
         <button class="btn primary" type="submit">Buscar</button>
-        <button class="btn" type="button" onclick={() => (mostrador = true)} disabled={!$cat}>+ Cliente sin registro</button>
+        <button class="btn" type="button" onclick={() => (mostrador = true)} disabled={!$cat}>+ Reservar aquí</button>
+        <button class="btn ghost" type="button" onclick={() => (vincular = true)}>Vincular visitas</button>
       </form>
     </div>
     {#if buscando}
@@ -95,3 +98,4 @@
 </div>
 
 {#if $cat}<Mostrador bind:abierto={mostrador} cat={$cat} oncreada={(c) => buscar(c)} />{/if}
+<VincularVisitas bind:abierto={vincular} />

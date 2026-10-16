@@ -33,9 +33,13 @@ r.post('/registro', limiterRegistro, ah(async (req, res) => {
     telefono: z.string().transform(normTel).refine((t) => t === '' || t.length === 10, 'Teléfono de 10 dígitos').optional(),
     aceptaPromos: z.boolean().optional(),
   }).parse(req.body)
-  const tel = b.telefono || null
+  let tel = b.telefono || null
   if (await prisma.cliente.findUnique({ where: { email: b.email } })) throw new HttpError(409, 'Ese correo ya está registrado')
-  if (tel && (await prisma.cliente.findUnique({ where: { telefono: tel } }))) throw new HttpError(409, 'Ese teléfono ya está registrado')
+  const conTel = tel ? await prisma.cliente.findUnique({ where: { telefono: tel } }) : null
+  if (conTel?.email) throw new HttpError(409, 'Ese teléfono ya está registrado')
+  // el teléfono es de un registro de mostrador (visitas sin cuenta): la cuenta se crea sin él y recepción
+  // vincula esas visitas con el número de cliente (POST /api/staff/clientes/vincular), que también le pasa el teléfono
+  if (conTel) tel = null
   const c = await prisma.cliente.create({ data: { nombre: b.nombre, email: b.email, telefono: tel, aceptaPromos: b.aceptaPromos ?? false, passwordHash: await bcrypt.hash(b.password, 12) } })
   await revocarActual(req, 'cliente')
   const token = await crearSesion(req, res, { clienteId: c.id })

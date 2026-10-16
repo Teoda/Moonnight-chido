@@ -16,7 +16,8 @@ npm install
 copy .env.example .env        # en Linux/Mac: cp .env.example .env
 npm run db:up                 # MySQL en Docker
 npx prisma migrate deploy     # crea / actualiza las tablas
-npm run db:seed               # datos iniciales y usuarios de prueba
+npm run db:seed               # datos iniciales
+npm run personal:crear        # personal con llave de 8 dígitos (las muestra una sola vez)
 npm run dev                   # API en http://localhost:4000
 
 # 2) Front (terminal 2)
@@ -50,7 +51,8 @@ desde tu computadora con `DATABASE_URL` apuntando a ella:
 ```bash
 cd moonlight-db
 npx prisma migrate deploy     # crea las tablas
-npm run db:seed               # datos iniciales (en producción exige SEED_PASSWORD propio)
+npm run db:seed               # datos iniciales
+npm run personal:crear        # personal con llave de 8 dígitos (las muestra una sola vez)
 ```
 En Vercel el mantenimiento de cada minuto (liberar reservas sin pagar, no-shows) corre con las propias peticiones.
 
