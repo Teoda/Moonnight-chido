@@ -1,11 +1,11 @@
 <!--
   Selector de productos con cantidades, agrupado por sección (desplegables).
-  Controlado: recibe `cantidades` y avisa cada cambio con `oncambiar`. Si se indica `tipoSalaId`,
+  Controlado: recibe `cantidades` y avisa cada cambio con `oncambiar`. Paquetes va primero y abierto; si se indica `tipoSalaId`,
   los paquetes de ese tipo de sala se resaltan y van primero.
 -->
 <script lang="ts">
   import type { Producto, TipoSala } from '#lib/api/types.ts'
-  import { agruparCarta, lineasPaquete, MAX_LINEAS } from '#lib/utils/carta.ts'
+  import { agruparCarta, lineasPaquete, MAX_LINEAS, ordenGrupos } from '#lib/utils/carta.ts'
   import { money } from '#lib/utils/formato.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { dispatch } from '#lib/store/index.ts'
@@ -18,6 +18,8 @@
   } = $props()
 
   const grupos = $derived(agruparCarta(menu))
+  // Paquetes primero (es lo que más se quiere vender), luego el resto en el orden de la carta
+  const nombres = $derived(ordenGrupos(grupos))
   const nombreTipo = (id: number | null) => tipos.find((t) => t.id === id)?.nombre ?? ''
 
   function cambiar(p: Producto, delta: number) {
@@ -33,9 +35,10 @@
 </script>
 
 <div>
-  {#each [...grupos] as [grupo, subs] (grupo)}
+  {#each nombres as grupo (grupo)}
+    {@const subs = grupos.get(grupo)!}
     {@const n = elegidos([...subs.values()].flat())}
-    <details class="grupo-carta" open={grupo === 'Paquetes' && !!tipoSalaId}>
+    <details class="grupo-carta" open={grupo === 'Paquetes'}>
       <summary>
         <span>{grupo}</span>
         {#if n}<span class="badge accent ml-auto">{n} elegido{n === 1 ? '' : 's'}</span>{/if}

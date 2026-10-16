@@ -16,7 +16,6 @@
   import Modal from '#lib/components/Modal.svelte'
   import AuthModal from '#lib/components/sitio/AuthModal.svelte'
   import EstadoCuenta from '#lib/components/sitio/EstadoCuenta.svelte'
-  import CambiarPassword from '#lib/components/CambiarPassword.svelte'
   import { pedirSesion } from '#lib/components/sitio/auth.svelte.ts'
   import Notificaciones from '#lib/components/sitio/Notificaciones.svelte'
 
@@ -27,7 +26,6 @@
   const alerta = seleccionar((s) => s.mis.alerta)
   const lista = seleccionar((s) => s.mis.lista)
   let esAdmin = $state(false)
-  let cambiarPw = $state(false)
   let menu = $state(false) // menú desplegable en pantallas chicas
 
   // al cambiar de página se cierra el menú
@@ -58,7 +56,7 @@
   async function salir() {
     await dispatch(salirCliente())
     dispatch(olvidar())
-    if (page.url.pathname.startsWith('/mis-reservaciones')) goto('/')
+    if (['/mis-reservaciones', '/perfil'].some((r) => page.url.pathname.startsWith(r))) goto('/')
   }
   const activo = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href))
 </script>
@@ -73,7 +71,7 @@
 {#snippet cuenta()}
   {#if $cliente}
     <span class="muted small">Hola, {$cliente.nombre.split(' ')[0]}</span>
-    <button class="btn sm ghost" type="button" onclick={() => { menu = false; cambiarPw = true }}>Contraseña</button>
+    <a class="btn sm ghost" href="/perfil" aria-current={activo('/perfil') ? 'page' : undefined} onclick={() => (menu = false)}>Mi perfil</a>
     <button class="btn sm" type="button" onclick={() => { menu = false; salir() }}>Salir</button>
   {:else}
     <button class="btn sm" type="button" onclick={() => { menu = false; pedirSesion() }}>Iniciar sesión</button>
@@ -118,7 +116,6 @@
 </footer>
 
 <AuthModal />
-<CambiarPassword bind:abierto={cambiarPw} ambito="cliente" />
 
 {#if $alerta && rAlerta}
   <Modal abierto titulo={$alerta.tipo === 'tiempoTerminado' ? '⏰ Tu tiempo terminó' : '🧾 Tu cuenta se cerró'} onclose={() => dispatch(alertar(null))}>
