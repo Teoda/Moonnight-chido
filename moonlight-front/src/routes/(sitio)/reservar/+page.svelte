@@ -285,9 +285,9 @@
         <dt>Horario</dt><dd>{$r.slot ? `${fmtHora($r.slot)}–${fmtHora(new Date($r.slot).getTime() + b.duracionMin * 6e4)}` : '—'}</dd>
         <dt>Personas</dt><dd>{b.personas}</dd>
         <dt>Sala</dt><dd>{t.tipo?.nombre ?? '—'}</dd>
-        <dt>Música</dt><dd>{$r.genero === 'lista' ? '🎤 Mi propia lista' : $r.genero ? `🎤 ${$cat.tematicas.find((x) => x.id === $r.genero)?.nombre}` : '—'}</dd>
+        <dt class="ancho">Música</dt><dd class="ancho">{$r.genero === 'lista' ? '🎤 Mi propia lista' : $r.genero ? `🎤 ${$cat.tematicas.find((x) => x.id === $r.genero)?.nombre}` : '—'}</dd>
         {#if musica.error === undefined && musica.artistas.length}
-          <dt class="small">Artistas</dt><dd class="small">{musica.artistas.slice(0, 3).join(', ')}{musica.artistas.length > 3 ? ` y ${musica.artistas.length - 3} más` : ''}</dd>
+          <dt class="ancho small">Artistas</dt><dd class="ancho small">{musica.artistas.slice(0, 3).join(', ')}{musica.artistas.length > 3 ? ` y ${musica.artistas.length - 3} más` : ''}</dd>
         {/if}
         <dt>Sala ({durTxt(b.duracionMin)})</dt><dd>{money(t.sala)}</dd>
         <dt>Anticipo sala {$cat.reglas.anticipoSalaPct}%</dt><dd>{money(t.anticipoSala)}</dd>

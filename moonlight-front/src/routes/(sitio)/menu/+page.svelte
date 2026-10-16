@@ -1,82 +1,127 @@
-<!-- Carta: paquetes por tipo de sala, botellas, refrescos y botanas. -->
+<!-- Carta: Paquetes siempre visibles (lo que más se quiere vender) y debajo las categorías como tarjetas
+     visuales; cada una abre un panel con sus productos. Todo sale del catálogo del API; las categorías solo
+     deciden cómo se agrupan las secciones (utils/carta.ts → CATEGORIAS_CARTA). -->
 <script lang="ts">
-  import { seleccionar } from '#lib/store/index.ts'
-  import { agruparCarta, lineasPaquete, nombreBotella, ordenGrupos } from '#lib/utils/carta.ts'
-  import { money, slug } from '#lib/utils/formato.ts'
-  import { inclinar, revelar } from '#lib/fx/efectos.ts'
+  import { goto } from '$app/navigation'
+  import { page } from '$app/state'
+  import { dispatch, seleccionar } from '#lib/store/index.ts'
+  import { cargarCatalogo } from '#lib/store/catalogo.ts'
+  import { CATEGORIAS_CARTA, nombreBotella, type CategoriaCarta } from '#lib/utils/carta.ts'
+  import { num, slug } from '#lib/utils/formato.ts'
+  import TarjetaCategoria, { type CategoriaLista } from '#lib/components/sitio/carta/TarjetaCategoria.svelte'
+  import PanelCategoria from '#lib/components/sitio/carta/PanelCategoria.svelte'
+  import TarjetaPaquete from '#lib/components/sitio/carta/TarjetaPaquete.svelte'
+  import PanelPaquete from '#lib/components/sitio/carta/PanelPaquete.svelte'
 
   const cat = seleccionar((s) => s.catalogo.datos)
-  const grupos = $derived($cat ? agruparCarta($cat.menu) : new Map())
-  const nombres = $derived(ordenGrupos(grupos))
+  const estado = seleccionar((s) => s.catalogo.estado)
   const tipoCortesia = $derived($cat?.cortesia ? $cat.tipos.find((t) => t.id === $cat.cortesia!.tipoSalaId) : null)
 
-  const ir = (g: string) => document.getElementById(`carta-${slug(g)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // categorías con sus productos (en el orden del catálogo); las vacías no se muestran.
+  // Una sección nueva que no esté en CATEGORIAS_CARTA aparece como categoría propia (sin foto) para no perder productos.
+  const categorias = $derived.by((): CategoriaLista[] => {
+    if (!$cat) return []
+    const menu = $cat.menu.filter((p) => p.categoria !== 'PAQUETE')
+    const usadas = new Set(CATEGORIAS_CARTA.flatMap((c) => c.secciones))
+    const extra = [...new Set(menu.map((p) => p.seccion))].filter((s) => !usadas.has(s))
+      .map((s): CategoriaCarta => ({ id: slug(s), nombre: s.split(' · ').pop() || s, descripcion: s.split(' · ')[0], secciones: [s] }))
+    return [...CATEGORIAS_CARTA, ...extra].map((c) => {
+      const grupos = c.secciones
+        .map((seccion) => {
+          const [grupo, sub = grupo] = seccion.split(' · ')
+          // con pestañas o una sola sección se usa el subgrupo ("Tequila"); si junta varias, el grupo ("Botanas")
+          return { seccion, titulo: c.pestanas || c.secciones.length === 1 ? sub : grupo, productos: menu.filter((p) => p.seccion === seccion) }
+        })
+        .filter((g) => g.productos.length)
+      const precios = grupos.flatMap((g) => g.productos.map((p) => num(p.precio)))
+      return { ...c, grupos, total: precios.length, desde: precios.length ? Math.min(...precios) : 0 }
+    }).filter((c) => c.total)
+  })
+  const forma = (i: number, total: number) => (i === 0 ? 'grande' : i === total - 1 && total % 2 === 0 ? 'ancha' : 'normal')
+
+  // panel abierto = estado del historial: el botón "atrás" lo cierra y no se sale de la página
+  const abierta = $derived(page.state.categoria)
+  // shallow: solo cambia el estado del historial (sin navegar, sin mover el scroll ni el foco)
+  const abrir = (id: string) => goto('', { state: { categoria: id }, shallow: true })
+  const cambiar = (id: string) => goto('', { state: { categoria: id }, shallow: true, replace: true })
+  const cerrar = () => history.back()
+
+  // paquetes ordenados por sala (Pequeña → Premium) y, dentro de cada una, en el orden del catálogo
+  const paquetes = $derived($cat ? $cat.tipos.flatMap((t) => $cat.menu.filter((p) => p.categoria === 'PAQUETE' && p.tipoSalaId === t.id)) : [])
+  const paqueteAbierto = $derived(page.state.paquete)
+  const abrirPaquete = (id: number) => goto('', { state: { paquete: id }, shallow: true })
 </script>
 
 <svelte:head><title>Carta · Moonlight</title></svelte:head>
 
-<h2>Carta</h2>
-<figure class="banner-foto">
-  <img src="/img/lugar/bar.jpg" alt="Bar de Moonlight con barra iluminada, botellas y lounge" width="1200" height="675" loading="lazy" />
-</figure>
+<h2 class="mb-1">Carta</h2>
 <p class="muted">Pide por adelantado al reservar o desde tu sala durante la visita. Precios en pesos mexicanos (MXN).</p>
 
-{#if !$cat}
-  <div class="grid-3">{#each Array(3) as _, i (i)}<div class="skeleton"></div>{/each}</div>
-{:else}
-  <div class="chips mb-2">
-    {#each nombres as g (g)}<button class="chip" type="button" onclick={() => ir(g)}>{g}</button>{/each}
+{#if !$cat && $estado === 'error'}
+  <div class="aviso" role="alert">
+    <p class="font-bold">No pudimos cargar la carta.</p>
+    <p class="muted">Revisa tu conexión a internet e inténtalo de nuevo.</p>
+    <button class="btn" type="button" onclick={() => dispatch(cargarCatalogo())}>Reintentar</button>
   </div>
+{:else if !$cat}
+  <div class="categorias mt-6" aria-busy="true" aria-label="Cargando la carta">
+    {#each Array(6) as _, i (i)}<div class="skeleton {i === 0 ? 'grande' : ''} {i === 5 ? 'ancha' : ''}"></div>{/each}
+  </div>
+{:else}
+  <!-- ── Paquetes: siempre visibles y primero ── -->
+  <section class="mb-10" aria-labelledby="t-paquetes">
+    <h3 id="t-paquetes" class="titulo-carta">Paquetes</h3>
+    <p class="muted small">Consumos sugeridos por tipo de sala. No incluyen la renta de la sala.</p>
+    {#if $cat.cortesia?.botellas.length}
+      <p class="cortesia-tag">🍾 Toda reservación de Sala {tipoCortesia?.nombre || 'Premium'} incluye una botella de cortesía a elegir:
+        {$cat.cortesia.botellas.map((b) => nombreBotella(b.nombre)).join(', ')}.</p>
+    {/if}
+    <div class="paquetes">
+      {#each paquetes as p (p.id)}
+        <TarjetaPaquete paquete={p} sala={$cat.tipos.find((t) => t.id === p.tipoSalaId)?.nombre ?? ''}
+          abierto={paqueteAbierto === p.id} onabrir={abrirPaquete} />
+      {/each}
+    </div>
+  </section>
 
-  {#each nombres as g (g)}
-    <section class="mb-7 scroll-mt-24" id="carta-{slug(g)}">
-      <h3 class="titulo-carta">{g}</h3>
-      {#if g === 'Paquetes'}
-        <p class="muted small">Consumos sugeridos por tipo de sala. No incluyen la renta de la sala.</p>
-        {#if $cat.cortesia?.botellas.length}
-          <p class="cortesia-tag">🍾 Toda reservación de Sala {tipoCortesia?.nombre || 'Premium'} incluye una botella de cortesía a elegir:
-            {$cat.cortesia.botellas.map((b) => nombreBotella(b.nombre)).join(', ')}.</p>
-        {/if}
-        <div class="grid-3">
-          {#each $cat.tipos as t (t.id)}
-            {#each $cat.menu.filter((p) => p.categoria === 'PAQUETE' && p.tipoSalaId === t.id) as p (p.id)}
-              <article class="card flex flex-col {p.alcohol ? 'border-[rgba(255,194,61,.35)]' : ''}" use:revelar use:inclinar>
-                <div class="row between">
-                  <span class="badge accent">Sala {t.nombre}</span>
-                  {#if p.alcohol}
-                    <span class="row gap-1.5"><span class="badge warn">Con botella</span><span class="badge mas18">+18</span></span>
-                  {:else}
-                    <span class="badge ok">Sin alcohol</span>
-                  {/if}
-                </div>
-                <h3 class="mt-3 mb-2">{p.nombre}</h3>
-                <ul class="mb-2 list-disc pl-[18px] text-[.9rem] text-muted">
-                  {#each lineasPaquete(p) as l (l)}<li class="mb-1">{l}</li>{/each}
-                </ul>
-                <div class="price mt-auto pt-2.5 text-gold">{money(p.precio)}</div>
-              </article>
-            {/each}
-          {/each}
-        </div>
-      {:else}
-        <div class="grid-3">
-          {#each [...grupos.get(g)] as [sub, prods] (sub)}
-            <div class="card" use:revelar use:inclinar>
-              {#if sub}<h3>{sub} {#if prods.some((p: { alcohol: boolean }) => p.alcohol)}<span class="badge mas18">+18</span>{/if}</h3>{/if}
-              {#each prods as p (p.id)}
-                <div class="menu-item"><span>{nombreBotella(p.nombre)}</span><b>{money(p.precio)}</b></div>
-              {/each}
-            </div>
-          {/each}
-        </div>
-        {#if g === 'Botellas'}
-          <p class="muted small mt-2">Botellas de 700–750 ml aprox. según marca. Pregunta en barra si hielo, vasos y mezcladores se cobran por separado.</p>
-        {/if}
-      {/if}
-    </section>
-  {/each}
+  <!-- ── Categorías ── -->
+  <section aria-labelledby="t-explora">
+    <h3 id="t-explora" class="titulo-carta">Explora la carta</h3>
+    <p class="muted small">Elige una categoría para ver sus productos y precios.</p>
+    <div class="categorias">
+      {#each categorias as c, i (c.id)}
+        {@const f = forma(i, categorias.length)}
+        <div class="celda {f}"><TarjetaCategoria categoria={c} forma={f} onabrir={abrir} /></div>
+      {/each}
+    </div>
+  </section>
 
-  <p class="mt-4.5 rounded-[10px] border border-[rgba(255,107,129,.35)] bg-[rgba(255,107,129,.05)] px-3.5 py-3 text-[.88rem] text-muted">
+  <p class="mt-6 rounded-[10px] border border-[rgba(255,107,129,.35)] bg-[rgba(255,107,129,.05)] px-3.5 py-3 text-[.88rem] text-muted">
     <b class="mr-1.5 text-bad">+18</b> Venta de bebidas alcohólicas exclusivamente a mayores de edad. Se solicitará identificación oficial.
   </p>
+
+  <PanelCategoria {categorias} {abierta} oncambiar={cambiar} oncerrar={cerrar} />
+  <PanelPaquete {paquetes} tipos={$cat.tipos} abierto={paqueteAbierto} oncerrar={cerrar} />
 {/if}
+
+<style>
+  /* paquetes: 1 columna en teléfono, 2 en tableta, 3 en escritorio (6 paquetes = 3 × 2, filas de igual altura) */
+  .paquetes { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (width >= 40rem) { .paquetes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (width >= 64rem) { .paquetes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+  /* categorías: Botellas es la protagonista (2×2 en escritorio, todo el ancho en tableta y teléfono);
+     la última ocupa todo el ancho cuando sobra espacio. Teléfono: 2 columnas compactas. */
+  .categorias { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+  .grande, .ancha { grid-column: 1 / -1; }
+  .categorias .skeleton { min-height: 180px; }
+  .categorias .skeleton.grande { min-height: 260px; }
+  @media (width >= 40rem) { .categorias { gap: 16px; } }
+  @media (width >= 64rem) {
+    .categorias { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grande { grid-column: span 2; grid-row: span 2; }
+  }
+
+  .aviso { margin-top: 24px; padding: 28px 20px; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--bg-2); text-align: center; }
+  .aviso p { margin: 0 0 6px; }
+</style>

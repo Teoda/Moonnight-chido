@@ -255,6 +255,12 @@
   .summary dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 0; }
   .summary dt { color: var(--muted); }
   .summary dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+  /* textos largos (música, artistas): etiqueta arriba y valor debajo, a todo lo ancho; así la columna de importes
+     no se ensancha y las etiquetas ("A pagar en línea", "Sala (1 h)") no se parten palabra por palabra */
+  .summary .ancho { grid-column: 1 / -1; }
+  .summary dd.ancho { margin-top: -4px; text-align: left; overflow-wrap: normal; }
+  .summary dd:not(.ancho) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .summary dt.total { margin-right: -12px; padding-right: 12px; } /* la línea del total cruza el hueco entre columnas */
   .summary .total { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 6px; font-weight: 700; font-size: 1.1rem; }
   .summary dd.total { color: var(--gold); font-variant-numeric: tabular-nums; }
   .tamano { display: flex; flex-direction: column; text-align: left; padding: 0; overflow: hidden; cursor: pointer; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--text); font: inherit; transition: border-color .2s, box-shadow .2s, transform .15s; }
