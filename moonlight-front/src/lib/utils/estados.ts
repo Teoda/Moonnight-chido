@@ -43,6 +43,6 @@ export const CONCEPTOS: Record<string, string> = {
 }
 
 export const ROLES: Record<Rol, string> = {
-  ADMIN: 'Administración', OPERACIONES: 'Operaciones', FINANZAS: 'Finanzas', RECEPCION: 'Recepción',
+  SUPERADMIN: 'Súper administrador', ADMIN: 'Administración', OPERACIONES: 'Operaciones', FINANZAS: 'Finanzas', RECEPCION: 'Recepción',
   BARRA: 'Barra', MARKETING: 'Marketing', LIMPIEZA: 'Limpieza',
 }

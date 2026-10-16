@@ -1,4 +1,5 @@
-// Pestañas del panel y permisos: cada una se muestra solo a los roles que la API permite (ADMIN ve todo).
+// Pestañas del panel y permisos: cada una se muestra solo a los roles que la API permite
+// (SUPERADMIN y ADMIN ven todo; la gestión del personal y los turnos es solo del súper administrador).
 import type { Rol } from '../../api/types.ts'
 
 export const PESTANAS = [
@@ -11,7 +12,8 @@ export const PESTANAS = [
   { ruta: 'reportes', titulo: 'Reportes', roles: [] }, // solo Administración
 ] as const satisfies readonly { ruta: string; titulo: string; roles: readonly Rol[] }[]
 
-export const puede = (rol: Rol | undefined, ...roles: readonly Rol[]) => !!rol && (rol === 'ADMIN' || roles.includes(rol))
+export const puede = (rol: Rol | undefined, ...roles: readonly Rol[]) => !!rol && (rol === 'SUPERADMIN' || rol === 'ADMIN' || roles.includes(rol))
+export const esSuper = (rol: Rol | undefined) => rol === 'SUPERADMIN'
 export const pestanasDe = (rol: Rol | undefined) => PESTANAS.filter((p) => puede(rol, ...p.roles))
 
 /** Preferencias del panel en este dispositivo. */

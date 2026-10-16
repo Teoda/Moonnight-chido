@@ -15,7 +15,7 @@ const cookieOpts: CookieOptions = { httpOnly: true, secure: config.isProd, sameS
 const sha256 = (t: string) => crypto.createHash('sha256').update(t).digest('hex')
 
 /** Límites de la sesión: clientes, Administración (no expira mientras se use) o el resto del personal. */
-const limites = (rol?: Rol) => (!rol ? config.cliente : rol === 'ADMIN' ? config.admin : config.staff)
+const limites = (rol?: Rol) => (!rol ? config.cliente : rol === 'ADMIN' || rol === 'SUPERADMIN' ? config.admin : config.staff)
 
 /** Crea una sesión NUEVA (token de 256 bits) para un usuario del personal o un cliente. */
 export async function crearSesion(req: Request, res: Response, quien: { usuarioId: number; rol: Rol } | { clienteId: number }) {

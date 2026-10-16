@@ -1,7 +1,7 @@
 // Tipos de las respuestas de la API (moonlight-db). Los importes llegan como texto (Decimal de Prisma).
 export type Dinero = string | number
 
-export type Rol = 'ADMIN' | 'OPERACIONES' | 'FINANZAS' | 'RECEPCION' | 'BARRA' | 'MARKETING' | 'LIMPIEZA'
+export type Rol = 'SUPERADMIN' | 'ADMIN' | 'OPERACIONES' | 'FINANZAS' | 'RECEPCION' | 'BARRA' | 'MARKETING' | 'LIMPIEZA'
 export type EstadoReservacion = 'PENDIENTE_PAGO' | 'CONFIRMADA' | 'EN_CURSO' | 'FINALIZADA' | 'CANCELADA' | 'NO_SHOW'
 export type EstadoPedido = 'EN_ESPERA' | 'NUEVO' | 'PREPARANDO' | 'ENTREGADO' | 'CANCELADO'
 export type EstadoSala = 'ACTIVA' | 'LIMPIEZA' | 'MANTENIMIENTO'

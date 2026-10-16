@@ -40,3 +40,6 @@ export const lineas = (txt: string | null | undefined) => (txt || '').split('\n'
 
 /** Número de cliente para mostrar: el id con formato MC-0023 (recepción lo usa para encontrar al cliente). */
 export const numCliente = (id: number) => `MC-${String(id).padStart(4, '0')}`
+
+/** Tiempo transcurrido en minutos: "5 min", "2 h", "2 h 10 min". */
+export const tiempoTxt = (min: number) => (min < 60 ? `${min} min` : durTxt(min))

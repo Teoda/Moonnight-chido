@@ -16,12 +16,20 @@ export const requireStaff: RequestHandler = (req, res, next) =>
 export const requireCliente: RequestHandler = (req, res, next) =>
   req.auth?.cliente ? next() : void res.status(401).json({ error: 'Inicia sesión para continuar' })
 
-/** ADMIN puede todo; el resto solo los roles indicados. */
+/** SUPERADMIN y ADMIN pueden todo el panel; el resto solo los roles indicados. */
 export const requireRol = (...roles: Rol[]): RequestHandler => (req, res, next) => {
   const rol = req.auth?.usuario?.rol
   if (!rol) return void res.status(401).json({ error: 'No autenticado' })
-  if (rol === 'ADMIN' || roles.includes(rol)) return next()
+  if (rol === 'SUPERADMIN' || rol === 'ADMIN' || roles.includes(rol)) return next()
   res.status(403).json({ error: 'Sin permiso' })
+}
+
+/** Solo el súper administrador (llaves del personal y turnos). */
+export const requireSuper: RequestHandler = (req, res, next) => {
+  const rol = req.auth?.usuario?.rol
+  if (!rol) return void res.status(401).json({ error: 'No autenticado' })
+  if (rol === 'SUPERADMIN') return next()
+  res.status(403).json({ error: 'Solo el súper administrador puede hacer esto' })
 }
 
 const SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS'])
