@@ -122,7 +122,7 @@
 <svelte:head><title>Mis reservaciones · Moonlight</title></svelte:head>
 
 <div class="row between">
-  <h2>Mis reservaciones</h2>
+  <h1 class="titulo-pagina m-0">Mis reservaciones</h1>
   <div class="row">
     {#if $mis.hora}<span class="text-xs text-muted">Actualizado hace {Math.max(0, Math.round(($ahora - $mis.hora) / 1000))} s</span>{/if}
     <button class="btn sm" type="button" onclick={() => dispatch(cargarMis())}>Actualizar</button>

@@ -44,21 +44,21 @@
 <style>
   .tipo {
     display: flex; flex-direction: column; height: 100%; overflow: hidden;
-    border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2);
-    transition: border-color .25s, box-shadow .25s, transform .25s cubic-bezier(.2, .8, .2, 1);
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
+    transition: border-color var(--transicion, .25s ease);
   }
   .tipo:focus-within { border-color: rgba(180, 92, 255, .6); }
   /* tamaño cuyo panel está abierto */
-  .tipo.abierto { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 16px 40px -18px rgba(255, 194, 61, .45); }
-  @media (hover: hover) {
-    .tipo:hover { border-color: rgba(180, 92, 255, .75); box-shadow: 0 18px 40px -20px rgba(124, 58, 237, .75); transform: translateY(-3px); }
-    .tipo:hover .foto img:not(.logo-img) { transform: scale(1.13); }
+  .tipo.abierto { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .tipo:hover { border-color: rgba(255, 255, 255, .22); }
+    .tipo:hover .foto img:not(.logo-img) { transform: scale(1.11); }
   }
 
   /* las imágenes traen su propio marco redondeado: un zoom leve lo deja fuera del recorte */
   .foto { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0d0a1c; }
-  .foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.08); transition: transform .6s cubic-bezier(.2, .8, .2, 1); }
-  .foto::after { content: ""; position: absolute; inset: auto 0 0; height: 45%; background: linear-gradient(transparent, var(--bg-2)); pointer-events: none; }
+  .foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.08); transition: transform .5s ease; }
+  .foto::after { content: ""; position: absolute; inset: auto 0 0; height: 45%; background: linear-gradient(transparent, var(--card)); pointer-events: none; }
   .sin-foto { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(120% 90% at 50% 0%, #2a1a52 0%, var(--card) 70%); }
 
   .cuerpo { display: flex; flex: 1; flex-direction: column; gap: 10px; padding: 4px 18px 18px; }

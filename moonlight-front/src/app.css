@@ -3,7 +3,7 @@
 /* ── tema: paleta del logotipo (morado neón y dorado sobre casi negro) ──
    Genera utilidades como bg-card, text-gold, border-line, text-muted, font-serif... */
 @theme {
-  --color-fondo: #07060e;
+  --color-fondo: #0a0812;
   --color-fondo-2: #0f0b1e;
   --color-card: #150f2a;
   --color-card-2: #1e1640;
@@ -18,7 +18,12 @@
   --color-bad: #ff6b81;
   --color-info: #6cb6ff;
   --color-lila: #e9d5ff;
-  --font-sans: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Moonlight 2.0: paleta del sitio de clientes (ver bloque .sitio) */
+  --color-violeta: #9855de;
+  --color-dorado: #d6a765;
+  --color-superficie: #191324;
+  --color-tinta: #f7f4fb;
   --font-serif: "Cinzel", "Trajan Pro", Georgia, serif;
   --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --shadow-neon: 0 0 6px rgba(180, 92, 255, .9), 0 0 18px rgba(180, 92, 255, .6), 0 0 38px rgba(180, 92, 255, .35);
@@ -50,7 +55,7 @@
     -webkit-font-smoothing: antialiased;
   }
   a { color: var(--accent); }
-  /* jerarquía: títulos Lato Bold con tracking ajustado; cuerpo Lato Regular con interlineado amplio */
+  /* jerarquía: títulos Inter Bold con tracking ajustado; cuerpo Inter Regular con interlineado amplio */
   h1, h2, h3, h4 { line-height: 1.2; margin: 0 0 .5em; font-weight: 700; }
   h1, h2 { letter-spacing: -.025em; }
   h1 { line-height: 1.08; }
@@ -74,8 +79,8 @@
 }
 
 @layer components {
-  .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
-  @media (width >= 96rem) { .wrap { width: min(1280px, 100% - 64px); } }
+  .wrap { width: min(1280px, 100% - 32px); margin-inline: auto; }
+  @media (width >= 48rem) { .wrap { width: min(1280px, 100% - 64px); } }
   .muted { color: var(--muted); }
   /* subtítulos: Lato Light en color secundario */
   .subtitulo { font-weight: 300; color: var(--muted); font-size: clamp(1.05rem, .95rem + .4vw, 1.2rem); line-height: 1.65; }
@@ -357,25 +362,10 @@
 .onda { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, .28); transform: scale(0); animation: onda .6s ease-out forwards; pointer-events: none; }
 .vista { animation: fade .25s ease; }
 
-/* hero */
-.neon-titila { color: #f3e8ff; text-shadow: var(--neon); animation: neon-titila 7s infinite; }
-.escena::before { content: ""; position: absolute; inset: 8% 12% 18%; border-radius: 50%; z-index: -1; background: radial-gradient(circle, rgba(180, 92, 255, .35) 0%, rgba(255, 194, 61, .12) 45%, transparent 70%); filter: blur(20px); animation: halo 4s ease-in-out infinite; }
-.logo-hero { animation: flotar 6s ease-in-out infinite, logo-titila 9s infinite; }
 .isotipo { animation: logo-titila 9s infinite 2s; }
 .dot-vivo { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: ping 1.8s infinite; }
 .caret { display: inline-block; width: 2px; height: 1em; background: var(--accent-2); margin-left: 1px; vertical-align: -2px; animation: parpadeo 1s steps(1) infinite; }
-.notas span { position: absolute; bottom: 25%; font-size: 1.8rem; color: var(--accent-2); opacity: 0; animation: nota 5s ease-in infinite; }
-.notas span:nth-child(1) { left: 6%; }
-.notas span:nth-child(2) { left: 30%; animation-delay: 1.25s; color: var(--accent); }
-.notas span:nth-child(3) { left: 62%; animation-delay: 2.5s; color: var(--gold); }
-.notas span:nth-child(4) { left: 86%; animation-delay: 3.75s; }
 
-/* brillo de fondo del hero: manchas de color desenfocadas detrás del contenido */
-.hero-glow { position: absolute; inset: -40px -20vw 0; z-index: -1; pointer-events: none; overflow: hidden; }
-.hero-glow span { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55; animation: deriva 14s ease-in-out infinite alternate; }
-.hero-glow span:nth-child(1) { width: 46vw; max-width: 560px; aspect-ratio: 1; left: 8%; top: -10%; background: radial-gradient(circle, #8b5cf6 0%, transparent 70%); }
-.hero-glow span:nth-child(2) { width: 38vw; max-width: 460px; aspect-ratio: 1; right: 6%; top: 10%; background: radial-gradient(circle, #d946ef 0%, transparent 70%); animation-delay: -5s; opacity: .4; }
-.hero-glow span:nth-child(3) { width: 30vw; max-width: 360px; aspect-ratio: 1; left: 40%; bottom: -15%; background: radial-gradient(circle, #ffc23d 0%, transparent 70%); animation-delay: -9s; opacity: .18; }
 
 /* vista previa flotante del asistente (maqueta de ventana) */
 .ventana {
@@ -401,8 +391,6 @@
   -webkit-mask-image: linear-gradient(transparent, #000 22%); mask-image: linear-gradient(transparent, #000 22%);
 }
 
-/* entrada: aparecen subiendo; --d escalona los elementos */
-.animate-fade-in-up { animation: fadeInUp .8s cubic-bezier(.16, 1, .3, 1) var(--d, 0ms) both; }
 
 /* tarjetas de características: borde degradado animado que brilla al pasar el cursor.
    El borde es un ::before recortado con máscara (solo se ve el anillo de 1px), así no tapa el fondo. */
@@ -448,21 +436,132 @@
 @keyframes entra-toast { from { opacity: 0; transform: translateX(40px) scale(.95); } }
 @keyframes entra-dlg { from { opacity: 0; transform: translateY(20px) scale(.96); } }
 @keyframes brillo-codigo { 50% { box-shadow: 0 0 30px rgba(255, 212, 121, .25); border-color: rgba(255, 212, 121, .8); } }
-@keyframes neon-titila { 0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; text-shadow: var(--neon); } 20%, 24%, 55% { opacity: .55; text-shadow: none; } }
-@keyframes halo { 50% { transform: scale(1.12); opacity: .7; } }
-@keyframes flotar { 50% { transform: translateY(-14px); } }
 @keyframes logo-titila { 0%, 40%, 43%, 46%, 100% { filter: brightness(1.05) saturate(1.1); } 41.5%, 44.5% { filter: brightness(.55) saturate(.8); } }
 @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(79, 209, 165, .7); } 70%, 100% { box-shadow: 0 0 0 10px rgba(79, 209, 165, 0); } }
 @keyframes parpadeo { 50% { opacity: 0; } }
-@keyframes nota { 0% { opacity: 0; transform: translate(0, 0) rotate(0); } 15% { opacity: .9; } 100% { opacity: 0; transform: translate(30px, -240px) rotate(25deg); } }
 @keyframes eq { 50% { height: 100%; } }
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: none; } }
 @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-@keyframes deriva { to { transform: translate(6%, 8%) scale(1.12); } }
 @keyframes flotar-suave { 50% { transform: translateY(-8px); } }
 @keyframes burbuja { from { opacity: 0; transform: translateY(8px) scale(.96); } }
 @keyframes salto { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes campana { 25% { transform: rotate(14deg); } 50% { transform: rotate(-10deg); } 75% { transform: rotate(5deg); } }
+
+/* ══════════════ Moonlight 2.0 · sistema visual del sitio de clientes ══════════════
+   Todo va dentro de .sitio (contenedor sin caja del layout de clientes): el panel del personal no cambia.
+   Las variables se heredan, así que las utilidades de Tailwind (text-gold, bg-card…) toman la paleta nueva. */
+.sitio {
+  --accent: var(--color-violeta); --color-accent: var(--color-violeta);
+  --gold: var(--color-dorado); --color-gold: var(--color-dorado);
+  --text: var(--color-tinta); --color-texto: var(--color-tinta);
+  --card: var(--color-superficie); --color-card: var(--color-superficie);
+  --card-2: #221a30; --color-card-2: #221a30;
+  --bg-2: #120e1b; --color-fondo-2: #120e1b;
+  --line: rgba(255, 255, 255, .09); --color-line: rgba(255, 255, 255, .09);
+  --radius: 14px; --radio-boton: 12px;
+  --espacio-seccion: clamp(56px, 8vw, 96px);
+  --violeta-claro: color-mix(in oklab, var(--color-violeta) 78%, white);
+  --transicion: .25s ease;
+}
+.sitio :is(h1, h2, h3) { font-weight: 700; letter-spacing: -.02em; }
+.sitio h2 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem); line-height: 1.15; }
+/* título principal de cada página (h1), con el tamaño que tenían como h2 */
+.sitio .titulo-pagina { margin: 0 0 .5em; font-size: clamp(1.9rem, 1.4rem + 1.8vw, 2.6rem); line-height: 1.1; }
+.sitio :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+/* botones: un solo primario (violeta sólido), secundario sobre superficie; sin brillos ni saltos */
+.sitio .btn {
+  border-radius: var(--radio-boton); min-height: 44px; padding: 10px 18px; font-weight: 600;
+  background: var(--card); border-color: rgba(255, 255, 255, .12); box-shadow: none;
+  transition: background var(--transicion), border-color var(--transicion), color var(--transicion);
+}
+.sitio .btn:hover { border-color: var(--accent); }
+.sitio .btn:active { transform: none; }
+.sitio .btn.sm { min-height: 36px; padding: 6px 12px; border-radius: 10px; }
+.sitio .btn.lg { min-height: 48px; padding: 12px 24px; font-size: 1rem; }
+.sitio .btn.lg:not(:disabled):hover { transform: none; box-shadow: none; }
+.sitio .btn.primary { background: var(--accent); background-image: none; border-color: transparent; color: #fff; }
+.sitio .btn.primary:not(:disabled):hover { background: var(--violeta-claro); box-shadow: none; }
+.sitio .btn.primary.lg::before { display: none; }
+.sitio .btn.danger { border-color: rgba(255, 107, 129, .5); color: #ffc2cc; background: rgba(255, 107, 129, .08); }
+.sitio .btn.ok { border-color: rgba(79, 209, 165, .5); color: #b5f3dd; background: rgba(79, 209, 165, .08); }
+.sitio .btn.ghost { background: transparent; border-color: transparent; }
+.sitio .btn.ghost:hover { background: var(--card); }
+.sitio .chip { border-radius: 999px; transition: background var(--transicion), border-color var(--transicion); }
+.sitio .chip.selected { background: var(--accent); animation: none; }
+
+/* superficies: tarjeta sólida y discreta, radio 14 px */
+.sitio .card { background: var(--card); border-color: var(--line); border-radius: var(--radius); }
+.sitio .badge { border-radius: 999px; }
+
+/* tarjeta fotográfica compartida: <div class="foto-zoom"><img></div>. Zoom 1.03 solo con mouse y sin movimiento reducido */
+.foto-zoom { position: relative; overflow: hidden; border-radius: var(--radius); background: var(--card); }
+.foto-zoom > img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .foto-zoom:hover > img, :hover > .foto-zoom > img { transform: scale(1.03); }
+}
+.sitio .bloque { margin-top: var(--espacio-seccion); }
+
+/* ── pie de página editorial: marca + columnas separadas por líneas finas; vertical en teléfono ── */
+.sitio .pie { border-top: 1px solid var(--line); background: #0c0915; color: var(--muted); font-size: .92rem; }
+.sitio .pie-grid { display: grid; gap: 36px; padding-block: clamp(40px, 6vw, 72px) 32px; grid-template-columns: minmax(0, 1fr); }
+.sitio .pie-marca img { width: 180px; height: auto; margin: -8px 0 6px -6px; }
+.sitio .pie-marca p { max-width: 32ch; margin: 0 0 18px; line-height: 1.6; }
+.sitio .pie.minimo .pie-marca p { margin-bottom: 0; }
+.sitio .pie-col h2 { margin: 0 0 14px; color: var(--text); font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.sitio .pie-col ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sitio .pie-col a, .sitio .pie-enlace { color: var(--muted); text-decoration: none; transition: color var(--transicion); }
+.sitio .pie-enlace { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; }
+.sitio .pie-col a:hover, .sitio .pie-enlace:hover { color: var(--text); }
+.sitio .pie-col dl { display: grid; gap: 4px; margin: 0; }
+.sitio .pie-col dt { margin-top: 8px; color: var(--text); font-weight: 600; }
+.sitio .pie-col dt:first-child { margin-top: 0; }
+.sitio .pie-col dd { margin: 0; }
+.sitio .pie-legal {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding-block: 20px 28px;
+  border-top: 1px solid var(--line); font-size: .82rem;
+}
+.sitio .pie-legal a { color: var(--muted); text-decoration: none; }
+.sitio .pie-legal a:hover { color: var(--text); }
+@media (width >= 40rem) {
+  .sitio .pie-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sitio .pie-marca { grid-column: 1 / -1; }
+}
+@media (width >= 64rem) {
+  .sitio .pie-grid { grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 0; }
+  .sitio .pie-marca { grid-column: auto; padding-right: 40px; }
+  .sitio .pie-col { padding-left: 32px; border-left: 1px solid var(--line); }
+}
+/* títulos de sección de la Carta: sin neón, con la jerarquía de los demás títulos */
+.sitio .titulo-carta { color: var(--text); text-shadow: none; font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); letter-spacing: -.02em; margin: 8px 0 6px; }
+
+/* ── navegación: superficie oscura sólida, sin neón; "Reservar sala" destacado y siempre visible ── */
+.sitio .topbar { background: #0c0915; backdrop-filter: none; border-bottom-color: var(--line); }
+.sitio .barra { display: flex; align-items: center; gap: 12px; min-height: 64px; }
+.sitio .brand { flex: none; gap: 10px; color: var(--text); text-shadow: none; font-size: 1.12rem; letter-spacing: .1em; }
+.sitio .brand .isotipo { width: 40px; height: 40px; margin: -4px -2px -4px -6px; animation: none; }
+.sitio .nav-principal { display: none; flex: 1; justify-content: center; gap: 4px; }
+.sitio .nav-link { position: relative; color: var(--muted); background: none; font-weight: 500; transition: color var(--transicion); }
+.sitio .nav-link:hover { color: var(--text); background: none; }
+.sitio .nav-link.active { color: var(--text); background: none; }
+.sitio .nav-principal .nav-link.active::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -2px; height: 2px; border-radius: 2px; background: var(--accent); }
+.sitio .barra-acciones { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.sitio .cuenta-escritorio { display: none; align-items: center; gap: 6px; }
+.sitio .saludo { color: var(--muted); font-size: .88rem; margin-right: 2px; }
+.sitio .reservar { min-height: 40px; padding: 8px 16px; gap: 0; white-space: nowrap; }
+.sitio .reservar-extra { margin-left: .3em; }
+.sitio .reservar-extra { display: none; }
+.sitio .hamburguesa { background: var(--card); border-color: rgba(255, 255, 255, .12); border-radius: 10px; }
+.sitio .menu-movil { background: #0c0915; }
+.sitio .menu-movil .nav-link.active { box-shadow: inset 3px 0 0 var(--accent); }
+@media (width >= 30rem) { .sitio .reservar-extra { display: inline; } }
+@media (width < 25rem) { .sitio .brand-texto { display: none; } }
+@media (width >= 64rem) {
+  .sitio .barra { min-height: 72px; gap: 20px; }
+  .sitio .nav-principal { display: flex; }
+  .sitio .cuenta-escritorio { display: flex; }
+  .sitio .reservar { min-height: 44px; padding: 10px 20px; }
+  .sitio .hamburguesa, .sitio .menu-movil, .sitio .menu-velo { display: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }

@@ -76,7 +76,7 @@
     color: var(--muted); font: inherit; font-size: .84rem; white-space: nowrap; cursor: pointer; transition: color .2s, border-color .2s, background .2s;
   }
   .atajo:hover { color: var(--text); border-color: rgba(180, 92, 255, .6); }
-  .atajo[aria-current='true'] { color: #fff; background: #8b2cf5; border-color: #8b2cf5; }
+  .atajo[aria-current='true'] { color: #fff; background: var(--accent); border-color: var(--accent); }
   .atajo:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
   /* la foto trae su propio marco redondeado: un zoom leve lo deja fuera del recorte */

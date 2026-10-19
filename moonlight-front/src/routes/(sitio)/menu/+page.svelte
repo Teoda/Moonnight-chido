@@ -54,7 +54,7 @@
 
 <svelte:head><title>Carta · Moonlight</title></svelte:head>
 
-<h2 class="mb-1">Carta</h2>
+<h1 class="titulo-pagina mb-1">Carta</h1>
 <p class="muted">Pide por adelantado al reservar o desde tu sala durante la visita. Precios en pesos mexicanos (MXN).</p>
 
 {#if !$cat && $estado === 'error'}

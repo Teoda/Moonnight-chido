@@ -31,8 +31,9 @@
   // al cambiar de página se cierra el menú
   $effect(() => { void page.url.pathname; menu = false })
 
+  // "Reservar" no va aquí: es el botón destacado "Reservar sala" de la barra
   const enlaces = [
-    ['/', 'Inicio'], ['/salas', 'Salas'], ['/menu', 'Menú'], ['/reservar', 'Reservar'],
+    ['/', 'Inicio'], ['/salas', 'Salas'], ['/menu', 'Menú'],
   ] as const
 
   $effect(() => {
@@ -59,6 +60,8 @@
     dispatch(olvidar())
     if (['/mis-reservaciones', '/perfil'].some((r) => page.url.pathname.startsWith(r))) goto('/')
   }
+  // en Reservar el pie es mínimo (solo marca): el cliente se concentra en completar su reservación
+  const pieMinimo = $derived(page.url.pathname.startsWith('/reservar'))
   const activo = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href))
 </script>
 
@@ -71,35 +74,40 @@
 
 {#snippet cuenta()}
   {#if $cliente}
-    <span class="muted small">Hola, {$cliente.nombre.split(' ')[0]}</span>
+    <span class="saludo">Hola, {$cliente.nombre.split(' ')[0]}</span>
     <a class="btn sm ghost" href="/perfil" aria-current={activo('/perfil') ? 'page' : undefined} onclick={() => (menu = false)}>Mi perfil</a>
     <button class="btn sm" type="button" onclick={() => { menu = false; salir() }}>Salir</button>
   {:else}
-    <button class="btn sm" type="button" onclick={() => { menu = false; pedirSesion() }}>Iniciar sesión</button>
+    <button class="btn sm ghost" type="button" onclick={() => { menu = false; pedirSesion() }}>Iniciar sesión</button>
   {/if}
 {/snippet}
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') menu = false }} />
 
+<!-- .sitio: sistema visual Moonlight 2.0 del sitio de clientes (no alcanza al panel del personal) -->
+<div class="sitio contents">
 <header class="topbar">
-  <div class="wrap flex min-h-16 items-center gap-2.5 sm:gap-4">
-    <a class="brand min-w-0" href="/">
-      <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight
+  <div class="wrap barra">
+    <a class="brand" href="/" aria-label="Moonlight, ir al inicio">
+      <img class="logo-img isotipo" src="/img/isotipo.jpg" alt="" width="40" height="40" /><span class="brand-texto">Moonlight</span>
     </a>
-    <nav class="hidden flex-1 gap-1 lg:flex" aria-label="Principal">{@render navegacion()}</nav>
-    <div class="ml-auto flex items-center gap-1.5 lg:ml-0"><Notificaciones /></div>
-    <div class="hidden items-center gap-2 lg:flex">{@render cuenta()}</div>
-    <button class="hamburguesa lg:hidden" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
-      aria-expanded={menu} aria-controls="menu-movil" onclick={() => (menu = !menu)}><span></span><span></span><span></span></button>
+    <nav class="nav-principal" aria-label="Principal">{@render navegacion()}</nav>
+    <div class="barra-acciones">
+      <Notificaciones />
+      <div class="cuenta-escritorio">{@render cuenta()}</div>
+      <a class="btn primary reservar" href="/reservar" aria-current={activo('/reservar') ? 'page' : undefined}>Reservar<span class="reservar-extra">sala</span></a>
+      <button class="hamburguesa" class:abierta={menu} type="button" aria-label={menu ? 'Cerrar menú' : 'Abrir menú'}
+        aria-expanded={menu} aria-controls="menu-movil" onclick={() => (menu = !menu)}><span></span><span></span><span></span></button>
+    </div>
   </div>
   {#if menu}
-    <div id="menu-movil" class="menu-movil lg:hidden" transition:slide={{ duration: 220 }}>
+    <div id="menu-movil" class="menu-movil" transition:slide={{ duration: 220 }}>
       <nav class="wrap flex flex-col gap-0.5 py-2" aria-label="Principal (móvil)">{@render navegacion()}</nav>
       <div class="wrap flex flex-wrap items-center gap-2 border-t border-line py-3">{@render cuenta()}</div>
     </div>
   {/if}
 </header>
-{#if menu}<button class="menu-velo lg:hidden" type="button" aria-label="Cerrar menú" tabindex="-1" onclick={() => (menu = false)}></button>{/if}
+{#if menu}<button class="menu-velo" type="button" aria-label="Cerrar menú" tabindex="-1" onclick={() => (menu = false)}></button>{/if}
 
 <main class="wrap pt-7 pb-16">
   {#key page.url.pathname}
@@ -107,13 +115,55 @@
   {/key}
 </main>
 
-<footer class="border-t border-line py-6 text-[.85rem] text-muted">
-  <div class="wrap row between max-sm:flex-col max-sm:items-start max-sm:gap-2">
-    <span>© Moonlight · <span class="tagline text-[.7rem]">Karaoke &amp; Social Lounge</span></span>
-    <span>{resumenHorario($catalogo?.horarios)}</span>
-    <a href="/#ubicacion">📍 Cómo llegar</a>
+<footer class="pie" class:minimo={pieMinimo}>
+  <div class="wrap pie-grid">
+    <div class="pie-marca">
+      <a href="/" aria-label="Moonlight, ir al inicio"><img class="logo-img" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607" loading="lazy" /></a>
+      <p>Salas privadas de karaoke para cantar con tu gente, con la música que tú elijas.</p>
+      {#if !pieMinimo}<a class="btn primary" href="/reservar">Reservar sala</a>{/if}
+    </div>
+
+    {#if !pieMinimo}
+
+    <nav class="pie-col" aria-labelledby="pie-explora">
+      <h2 id="pie-explora">Explora</h2>
+      <ul>
+        <li><a href="/">Inicio</a></li>
+        <li><a href="/salas">Salas</a></li>
+        <li><a href="/menu">Menú</a></li>
+        <li><a href="/reservar">Reservar</a></li>
+      </ul>
+    </nav>
+
+    <nav class="pie-col" aria-labelledby="pie-cuenta">
+      <h2 id="pie-cuenta">Tu cuenta</h2>
+      <ul>
+        {#if $cliente}
+          <li><a href="/mis-reservaciones">Mis reservaciones</a></li>
+          <li><a href="/perfil">Mi perfil</a></li>
+        {:else}
+          <li><button type="button" class="pie-enlace" onclick={() => pedirSesion()}>Iniciar sesión o crear cuenta</button></li>
+        {/if}
+      </ul>
+    </nav>
+
+    <div class="pie-col">
+      <h2>Visítanos</h2>
+      <dl>
+        {#if resumenHorario($catalogo?.horarios)}<dt>Horario</dt><dd>{resumenHorario($catalogo?.horarios)}</dd>{/if}
+        <dt>Ubicación</dt>
+        <dd><a href="https://goo.gl/maps/VUutLXRjVrHx4v8Z6" target="_blank" rel="noopener">Cómo llegar en Google Maps</a></dd>
+      </dl>
+    </div>
+    {/if}
+  </div>
+
+  {#if !pieMinimo}
+  <div class="wrap pie-legal">
+    <span>© {new Date().getFullYear()} Moonlight Karaoke &amp; Social Lounge</span>
     {#if esAdmin && !$cliente}<a href="/staff">Panel de administración</a>{/if}
   </div>
+  {/if}
 </footer>
 
 <AuthModal />
@@ -132,3 +182,4 @@
     {/snippet}
   </Modal>
 {/if}
+</div>
