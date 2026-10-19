@@ -542,7 +542,7 @@
 .sitio .topbar { background: #0c0915; backdrop-filter: none; border-bottom-color: var(--line); }
 .sitio .barra { display: flex; align-items: center; gap: 12px; min-height: 64px; }
 .sitio .brand { flex: 0 1 auto; min-width: 0; overflow: hidden; gap: 10px; color: var(--text); text-shadow: none; font-size: 1.12rem; letter-spacing: .1em; }
-.sitio .brand .isotipo { width: 40px; height: 40px; margin: -4px -2px -4px -6px; animation: none; }
+.sitio .brand .isotipo { flex: none; width: 40px; height: 40px; max-width: none; object-fit: contain; margin: -4px -2px -4px -6px; animation: none; }
 .sitio .nav-principal { display: none; flex: 1; justify-content: center; gap: 4px; }
 .sitio .nav-link { position: relative; color: var(--muted); background: none; font-weight: 500; transition: color var(--transicion); }
 .sitio .nav-link:hover { color: var(--text); background: none; }
@@ -561,7 +561,17 @@
 .sitio .menu-movil .nav-link.active { box-shadow: inset 3px 0 0 var(--accent); }
 /* en rem: se ajusta también si el teléfono tiene el texto agrandado */
 @media (width >= 38rem) { .sitio .reservar-extra { display: inline; } }
-@media (width < 30rem) { .sitio .brand-texto { display: none; } }
+/* teléfono: todo un poco más compacto; la marca toma el espacio que sobra y el nombre se achica para caber completo
+   (100cqi = ancho de la marca; 36px = logo + separación; "MOONLIGHT" mide ~8em con su espaciado). Si ni así cabe, queda el puro logo */
+@media (width < 30rem) {
+  .sitio .barra { gap: 8px; }
+  .sitio .barra-acciones { gap: 6px; }
+  .sitio .brand { flex: 1 1 0; container-type: inline-size; gap: 6px; letter-spacing: .06em; }
+  .sitio .brand .isotipo { width: 34px; height: 34px; margin: -2px 0 -2px -4px; }
+  .sitio .brand-texto { font-size: min(.98rem, calc((100cqi - 36px) / 8)); }
+  .sitio .reservar { padding: 8px 12px; }
+}
+@container (width < 100px) { .sitio .brand-texto { display: none; } }
 @media (width >= 64rem) {
   .sitio .barra { min-height: 72px; gap: 20px; }
   .sitio .nav-principal { display: flex; }
