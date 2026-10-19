@@ -46,7 +46,7 @@
 <svelte:head><title>Mi perfil · Moonlight</title></svelte:head>
 
 <div class="row between mb-4">
-  <h2 class="m-0">Mi perfil</h2>
+  <h1 class="titulo-pagina m-0">Mi perfil</h1>
   <a class="btn sm" href="/mis-reservaciones">Mis reservaciones</a>
 </div>
 

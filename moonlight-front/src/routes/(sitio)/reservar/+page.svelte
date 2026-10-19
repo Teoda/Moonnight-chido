@@ -129,7 +129,7 @@
 
 <svelte:head><title>Reservar · Moonlight</title></svelte:head>
 
-<h2>Reservar</h2>
+<h1 class="titulo-pagina">Reservar</h1>
 <div class="steps mb-4.5 flex flex-wrap gap-2">
   {#each ['Sala y horario', 'Tu música', 'Alimentos y bebidas', 'Confirmar y pagar'] as paso, i (paso)}
     <span class="s" class:on={hechos[i + 1]}>{i + 1}. {paso}</span>
@@ -151,7 +151,7 @@
         {#each $cat.tipos as tp (tp.id)}
           <button type="button" class="tamano" class:on={tp.id === $r.tipoSalaId} role="radio" aria-checked={tp.id === $r.tipoSalaId}
             onclick={() => elegirTipo(tp.id, tp.capacidadMax)}>
-            <img src={FOTOS_TIPO[tp.codigo] || ''} alt="" loading="lazy" />
+            <img src={FOTOS_TIPO[tp.codigo] || ''} alt="" width="800" height="500" loading="lazy" />
             <span class="flex flex-col gap-0.5 px-3 py-2.5">
               <b>Sala {tp.nombre}</b>
               <span class="muted small">Hasta {tp.capacidadMax} personas</span>

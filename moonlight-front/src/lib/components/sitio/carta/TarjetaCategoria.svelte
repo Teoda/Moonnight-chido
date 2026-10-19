@@ -44,14 +44,14 @@
   .cat {
     display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; padding: 0; overflow: hidden; cursor: pointer;
     text-align: left; font: inherit; color: var(--text);
-    border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2);
-    transition: border-color .25s, box-shadow .25s, transform .25s cubic-bezier(.2, .8, .2, 1);
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
+    transition: border-color var(--transicion, .25s ease);
   }
   .cat:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-  @media (hover: hover) {
-    .cat:hover { border-color: rgba(180, 92, 255, .7); box-shadow: 0 18px 40px -20px rgba(124, 58, 237, .7); transform: translateY(-2px); }
-    .cat:hover .foto img:not(.logo-img) { transform: scale(1.04); }
-    .cat:hover .ir { background: #8b2cf5; border-color: #8b2cf5; color: #fff; }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .cat:hover { border-color: rgba(255, 255, 255, .22); }
+    .cat:hover .foto img:not(.logo-img) { transform: scale(1.03); }
+    .cat:hover .ir { background: var(--accent); border-color: var(--accent); color: #fff; }
   }
 
   /* foto: proporción fija en las tarjetas normales; la grande (Botellas) llena el alto de dos filas */
@@ -60,9 +60,9 @@
   .ancha .foto { aspect-ratio: 16 / 9; }
   @media (width >= 40rem) { .ancha .foto { aspect-ratio: 16 / 7; } }
   @media (width >= 64rem) { .ancha .foto { aspect-ratio: 16 / 5; } }
-  .foto > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .6s cubic-bezier(.2, .8, .2, 1); }
+  .foto > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
   /* degradado inferior: une la foto con el pie de la tarjeta */
-  .foto::after { content: ""; position: absolute; inset: auto 0 0; height: 40%; background: linear-gradient(transparent, rgba(15, 11, 30, .85)); pointer-events: none; }
+  .foto::after { content: ""; position: absolute; inset: auto 0 0; height: 40%; background: linear-gradient(transparent, var(--card)); pointer-events: none; }
   .sin-foto {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px;
     background: radial-gradient(120% 90% at 50% 0%, #2a1a52 0%, var(--card) 70%); color: var(--muted); font-size: .8rem;
