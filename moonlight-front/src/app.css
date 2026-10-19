@@ -500,6 +500,10 @@
   .foto-zoom:hover > img, :hover > .foto-zoom > img { transform: scale(1.03); }
 }
 .sitio .bloque { margin-top: var(--espacio-seccion); }
+/* notificaciones en teléfono y tableta: el panel se fija a la pantalla (no a la campana) para no salirse por los lados */
+@media (width < 64rem) {
+  .sitio .notif-panel { position: fixed; top: 72px; left: 12px; right: 12px; width: auto; max-height: calc(100dvh - 88px); overflow-y: auto; transform-origin: top center; }
+}
 
 /* ── pie de página editorial: marca + columnas separadas por líneas finas; vertical en teléfono ── */
 .sitio .pie { border-top: 1px solid var(--line); background: #0c0915; color: var(--muted); font-size: .92rem; }
@@ -537,14 +541,16 @@
 /* ── navegación: superficie oscura sólida, sin neón; "Reservar sala" destacado y siempre visible ── */
 .sitio .topbar { background: #0c0915; backdrop-filter: none; border-bottom-color: var(--line); }
 .sitio .barra { display: flex; align-items: center; gap: 12px; min-height: 64px; }
-.sitio .brand { flex: none; gap: 10px; color: var(--text); text-shadow: none; font-size: 1.12rem; letter-spacing: .1em; }
+.sitio .brand { flex: 0 1 auto; min-width: 0; overflow: hidden; gap: 10px; color: var(--text); text-shadow: none; font-size: 1.12rem; letter-spacing: .1em; }
 .sitio .brand .isotipo { width: 40px; height: 40px; margin: -4px -2px -4px -6px; animation: none; }
 .sitio .nav-principal { display: none; flex: 1; justify-content: center; gap: 4px; }
 .sitio .nav-link { position: relative; color: var(--muted); background: none; font-weight: 500; transition: color var(--transicion); }
 .sitio .nav-link:hover { color: var(--text); background: none; }
 .sitio .nav-link.active { color: var(--text); background: none; }
 .sitio .nav-principal .nav-link.active::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -2px; height: 2px; border-radius: 2px; background: var(--accent); }
-.sitio .barra-acciones { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+/* las acciones nunca se encogen ni se salen: si falta espacio, cede la marca */
+.sitio .barra-acciones { display: flex; flex: none; align-items: center; gap: 8px; margin-left: auto; }
+.sitio .brand-texto { min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .sitio .cuenta-escritorio { display: none; align-items: center; gap: 6px; }
 .sitio .saludo { color: var(--muted); font-size: .88rem; margin-right: 2px; }
 .sitio .reservar { min-height: 40px; padding: 8px 16px; gap: 0; white-space: nowrap; }
@@ -553,8 +559,9 @@
 .sitio .hamburguesa { background: var(--card); border-color: rgba(255, 255, 255, .12); border-radius: 10px; }
 .sitio .menu-movil { background: #0c0915; }
 .sitio .menu-movil .nav-link.active { box-shadow: inset 3px 0 0 var(--accent); }
-@media (width >= 30rem) { .sitio .reservar-extra { display: inline; } }
-@media (width < 25rem) { .sitio .brand-texto { display: none; } }
+/* en rem: se ajusta también si el teléfono tiene el texto agrandado */
+@media (width >= 38rem) { .sitio .reservar-extra { display: inline; } }
+@media (width < 30rem) { .sitio .brand-texto { display: none; } }
 @media (width >= 64rem) {
   .sitio .barra { min-height: 72px; gap: 20px; }
   .sitio .nav-principal { display: flex; }
