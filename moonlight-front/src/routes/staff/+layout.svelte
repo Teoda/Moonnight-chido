@@ -22,6 +22,10 @@
   const usuario = seleccionar((s) => s.sesion.usuario)
   const revisada = seleccionar((s) => s.sesion.revisada.staff)
   const tabs = $derived(pestanasDe($usuario?.rol))
+  // entrar escribiendo la dirección de una pestaña que el rol no ve: se va a la primera que sí
+  const ruta = $derived(page.url.pathname.split('/')[2] ?? '')
+  const permitida = $derived(!ruta || tabs.some((t) => t.ruta === ruta))
+  $effect(() => { if ($usuario && !permitida && tabs[0]) goto(`/staff/${tabs[0].ruta}`, { replaceState: true }) })
   let error = $state(''), enviando = $state(false)
   let personal = $state(false) // ventana Personal (llaves), solo Administración
   let menu = $state(false) // menú desplegable en pantallas chicas
@@ -134,7 +138,7 @@
     </nav>
     {#if !tabs.length}
       <p class="muted">Tu rol aún no tiene secciones en este panel.</p>
-    {:else}
+    {:else if permitida}
       {#key page.url.pathname}<div class="vista">{@render children()}</div>{/key}
     {/if}
   {/if}

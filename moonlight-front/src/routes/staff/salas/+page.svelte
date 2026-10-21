@@ -9,7 +9,7 @@
   import { ahora, cambio } from '#lib/fx/efectos.ts'
   import Badge from '#lib/components/Badge.svelte'
   import Progreso from '#lib/components/Progreso.svelte'
-  import { cadaQuince, puede } from '#lib/components/staff/panel.svelte.ts'
+  import { cadaQuince, esSuper, puede } from '#lib/components/staff/panel.svelte.ts'
 
   type Situacion = 'libre' | 'llegando' | 'ocupada' | 'limpieza' | 'mant'
   const LEYENDA: [Situacion, string][] = [['libre', 'Libre'], ['llegando', 'Por llegar'], ['ocupada', 'Ocupada'], ['limpieza', 'Limpieza'], ['mant', 'Mantenimiento']]
@@ -19,7 +19,7 @@
   const usuario = seleccionar((s) => s.sesion.usuario)
   let salas = $state<SalaStaff[] | null>(null), error = $state('')
   let elegida = $state<number | null>(null)
-  const ops = $derived(puede($usuario?.rol, 'OPERACIONES'))
+  const ops = $derived(puede($usuario?.rol, 'OPERACIONES') && !esSuper($usuario?.rol)) // el súper administrador solo mira
 
   // alas por tipo de sala, de menor a mayor capacidad; la más grande va sola abajo, del otro lado del pasillo
   const alas = $derived.by(() => {

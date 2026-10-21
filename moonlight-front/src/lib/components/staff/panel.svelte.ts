@@ -1,20 +1,23 @@
-// Pestañas del panel y permisos: cada una se muestra solo a los roles que la API permite
-// (SUPERADMIN y ADMIN ven todo; la gestión del personal y los turnos es solo del súper administrador).
+// Pestañas del panel y permisos: cada una se muestra solo a los roles que la API permite (ADMIN ve todo).
+// El súper administrador no ve la operación diaria: solo las pestañas con `superadmin` en 'si' o 'solo',
+// además de la gestión del personal y los turnos, que es solo suya.
 import type { Rol } from '../../api/types.ts'
 
 export const PESTANAS = [
-  { ruta: 'recepcion', titulo: 'Recepción', roles: ['RECEPCION', 'OPERACIONES'] },
-  { ruta: 'agenda', titulo: 'Agenda', roles: ['RECEPCION', 'OPERACIONES', 'FINANZAS'] },
-  { ruta: 'barra', titulo: 'Barra', roles: ['BARRA', 'RECEPCION'] },
-  { ruta: 'salas', titulo: 'Salas', roles: ['OPERACIONES', 'RECEPCION', 'LIMPIEZA'] },
-  { ruta: 'limpieza', titulo: 'Limpieza', roles: ['LIMPIEZA', 'OPERACIONES'] },
-  { ruta: 'finanzas', titulo: 'Finanzas', roles: ['FINANZAS'] },
-  { ruta: 'reportes', titulo: 'Reportes', roles: [] }, // solo Administración
-] as const satisfies readonly { ruta: string; titulo: string; roles: readonly Rol[] }[]
+  { ruta: 'recepcion', titulo: 'Recepción', roles: ['RECEPCION', 'OPERACIONES'], superadmin: 'no' },
+  { ruta: 'agenda', titulo: 'Agenda', roles: ['RECEPCION', 'OPERACIONES', 'FINANZAS'], superadmin: 'no' },
+  { ruta: 'barra', titulo: 'Barra', roles: ['BARRA', 'RECEPCION'], superadmin: 'no' },
+  { ruta: 'salas', titulo: 'Salas', roles: ['OPERACIONES', 'RECEPCION', 'LIMPIEZA'], superadmin: 'si' }, // él solo mira
+  { ruta: 'limpieza', titulo: 'Limpieza', roles: ['LIMPIEZA', 'OPERACIONES'], superadmin: 'no' },
+  { ruta: 'finanzas', titulo: 'Finanzas', roles: ['FINANZAS'], superadmin: 'si' },
+  { ruta: 'reportes', titulo: 'Reportes', roles: [], superadmin: 'si' }, // solo Administración
+  { ruta: 'paneles', titulo: 'Paneles solares', roles: [], superadmin: 'solo' },
+] as const satisfies readonly { ruta: string; titulo: string; roles: readonly Rol[]; superadmin: 'si' | 'no' | 'solo' }[]
 
 export const puede = (rol: Rol | undefined, ...roles: readonly Rol[]) => !!rol && (rol === 'SUPERADMIN' || rol === 'ADMIN' || roles.includes(rol))
 export const esSuper = (rol: Rol | undefined) => rol === 'SUPERADMIN'
-export const pestanasDe = (rol: Rol | undefined) => PESTANAS.filter((p) => puede(rol, ...p.roles))
+export const pestanasDe = (rol: Rol | undefined) =>
+  esSuper(rol) ? PESTANAS.filter((p) => p.superadmin !== 'no') : PESTANAS.filter((p) => p.superadmin !== 'solo' && puede(rol, ...p.roles))
 
 /** Preferencias del panel en este dispositivo. */
 export const panel = $state({
