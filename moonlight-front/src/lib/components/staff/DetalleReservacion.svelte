@@ -7,6 +7,7 @@
   import { lineaItem, musicaTxt } from '#lib/utils/carta.ts'
   import { metodoTxt } from '#lib/utils/estados.ts'
   import { durTxt, fmtFechaHora, fmtHora, fmtRango, lineas, money, num } from '#lib/utils/formato.ts'
+  import { tarjetas } from '#lib/fx/efectos.ts'
   import Badge from '../Badge.svelte'
   import Modal from '../Modal.svelte'
   import SelectorMenu from '../SelectorMenu.svelte'
@@ -92,7 +93,7 @@
     <div>
       <h3>Pagos</h3>
       <div class="table-wrap">
-        <table>
+        <table use:tarjetas>
           <thead><tr><th>Tipo</th><th>Método</th><th>Monto</th><th>Estado</th></tr></thead>
           <tbody>
             {#each rv.pagos as p (p.id)}

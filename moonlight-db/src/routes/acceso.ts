@@ -41,9 +41,10 @@ r.post('/login', loginLimiter, ah(async (req, res) => {
 }))
 
 // ── personal ──
-/** Nombres del personal que puede entrar (para elegir en la pantalla de acceso del panel). */
+/** Nombres del personal que puede entrar (para elegir en la pantalla de acceso del panel). `super`: va en la pestaña de Súper administración. */
 r.get('/personal', ah(async (_req, res) => {
-  res.json(await prisma.usuario.findMany({ where: { activo: true, llaveHash: { not: null } }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }))
+  const lista = await prisma.usuario.findMany({ where: { activo: true, llaveHash: { not: null } }, select: { id: true, nombre: true, rol: true }, orderBy: { nombre: 'asc' } })
+  res.json(lista.map(({ rol, ...u }) => ({ ...u, super: rol === 'SUPERADMIN' })))
 }))
 
 r.post('/personal/login', loginLimiter, ah(async (req, res) => {

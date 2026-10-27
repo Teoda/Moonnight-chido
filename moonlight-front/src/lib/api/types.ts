@@ -89,6 +89,15 @@ export interface PedidoBarra extends Pedido {
 export interface SalaStaff {
   id: number; numero: number; estado: EstadoSala; tipoSala: TipoSala
   reservaciones: { codigo: string; estado: EstadoReservacion; inicio: string; fin: string; artistas: string | null; tematica: { nombre: string } | null }[]
+  /** La última observación que dejó limpieza (si hay). */
+  limpiezas: { observaciones: string; terminadaEn: string; realizadaPor: { nombre: string } | null }[]
+}
+/** Paneles solares del techo (por ahora simulados en la API). */
+export type EstadoPanel = 'ok' | 'revisar' | 'reparacion'
+export interface PanelesSolares {
+  simulado: boolean; nominal: number
+  paneles: { numero: number; estado: EstadoPanel; watts: number; revisado: string; nota?: string }[]
+  reparaciones: { panel: number; fecha: string; tipo: string; detalle: string; costo: number; estado: string }[]
 }
 export interface TareaLimpieza {
   id: number; estado: EstadoLimpieza; creadaEn: string; iniciadaEn: string | null
@@ -105,4 +114,5 @@ export interface ReporteSemanal {
   ingresos: { salas: number; tiempoExtra: number; alimentos: number; bebidas: number; paquetes: number; descuentos: number; retenciones: number; total: number }
   ingresosAnterior: number; variacion: number | null
   cobrado: number; visitas: number; pendiente: number; cancelaciones: number
+  observacionesLimpieza: number; costoPaneles: number // costoPaneles: simulado
 }

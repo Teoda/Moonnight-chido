@@ -22,6 +22,10 @@
   const usuario = seleccionar((s) => s.sesion.usuario)
   const revisada = seleccionar((s) => s.sesion.revisada.staff)
   const tabs = $derived(pestanasDe($usuario?.rol))
+  // entrar escribiendo la dirección de una pestaña que el rol no ve: se va a la primera que sí
+  const ruta = $derived(page.url.pathname.split('/')[2] ?? '')
+  const permitida = $derived(!ruta || tabs.some((t) => t.ruta === ruta))
+  $effect(() => { if ($usuario && !permitida && tabs[0]) goto(`/staff/${tabs[0].ruta}`, { replaceState: true }) })
   let error = $state(''), enviando = $state(false)
   let personal = $state(false) // ventana Personal (llaves), solo Administración
   let menu = $state(false) // menú desplegable en pantallas chicas
@@ -36,12 +40,15 @@
     dispatch(cargarCatalogo())
   })
 
-  // ── acceso: nombre del trabajador + llave de 8 números ──
-  let nombres = $state<{ id: number; nombre: string }[] | null>(null)
+  // ── acceso: nombre del trabajador + llave de 8 números; atajo arriba para la súper administración ──
+  let nombres = $state<{ id: number; nombre: string; super: boolean }[] | null>(null)
   let usuarioId = $state(''), llave = $state('')
+  let comoSuper = $state(false)
+  const visibles = $derived(nombres?.filter((n) => n.super === comoSuper) ?? [])
+  function cambiarAcceso(s: boolean) { comoSuper = s; usuarioId = ''; llave = ''; error = '' }
   $effect(() => {
     if ($revisada && !$usuario && !nombres)
-      api.get<{ id: number; nombre: string }[]>('/acceso/personal').then((l) => (nombres = l), () => (nombres = []))
+      api.get<{ id: number; nombre: string; super: boolean }[]>('/acceso/personal').then((l) => (nombres = l), () => (nombres = []))
   })
 
   async function entrar(e: SubmitEvent) {
@@ -63,14 +70,14 @@
 <header class="topbar">
   <div class="wrap flex min-h-16 items-center gap-4">
     <a class="brand min-w-0" href="/staff">
-      <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight <small class="muted small hidden sm:inline">· personal</small>
+      <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight <small class="muted small hidden lg:inline">· personal</small>
     </a>
     <div class="flex-1"></div>
     <span class="reloj hidden sm:inline" aria-label="Hora actual">{fmtReloj($ahora)}</span>
     {#if $usuario}
-      <span class="badge accent">{ROLES[$usuario.rol] || $usuario.rol}</span>
+      <span class="badge accent hidden whitespace-nowrap min-[26rem]:inline-flex">{ROLES[$usuario.rol] || $usuario.rol}</span>
       <div class="hidden items-center gap-2 md:flex">
-        <span class="small">{$usuario.nombre}</span>
+        <span class="small whitespace-nowrap">{$usuario.nombre}</span>
         {#if esSuper($usuario.rol)}<button class="btn sm ghost" type="button" onclick={() => (personal = true)}>Personal</button>{/if}
         <button class="btn sm" type="button" onclick={() => dispatch(salirStaff(false))}>Salir</button>
       </div>
@@ -89,6 +96,7 @@
       {/if}
       <div class="wrap flex flex-wrap items-center gap-2 border-t border-line py-3">
         <span class="small">{$usuario.nombre}</span>
+        <span class="badge accent min-[26rem]:hidden">{ROLES[$usuario.rol] || $usuario.rol}</span>
         <span class="reloj small sm:hidden">{fmtReloj($ahora)}</span>
         <div class="flex-1"></div>
         {#if esSuper($usuario.rol)}<button class="btn sm ghost" type="button" onclick={() => { menu = false; personal = true }}>Personal</button>{/if}
@@ -105,14 +113,18 @@
   {:else if !$usuario}
     <div class="card pad-lg mx-auto my-[8vh] max-w-[400px]">
       <img class="logo-img mx-auto -mt-1.5 mb-2 w-full max-w-[300px]" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607" />
-      <h2 class="text-center text-[1.3rem]">Acceso del personal</h2>
+      <div class="acceso-tipo" role="group" aria-label="Tipo de acceso">
+        <button type="button" aria-pressed={!comoSuper} onclick={() => cambiarAcceso(false)}>Personal</button>
+        <button type="button" aria-pressed={comoSuper} onclick={() => cambiarAcceso(true)}>Súper administración</button>
+      </div>
+      <h2 class="text-center text-[1.3rem]">{comoSuper ? 'Súper administración' : 'Acceso del personal'}</h2>
       <p class="muted small text-center">Elige tu nombre y escribe tu llave de 8 números.</p>
       <form onsubmit={entrar}>
         <div class="field">
-          <label for="l-nombre">Trabajador</label>
+          <label for="l-nombre">{comoSuper ? 'Administradora' : 'Trabajador'}</label>
           <select id="l-nombre" bind:value={usuarioId} required disabled={!nombres}>
             <option value="" disabled>{nombres ? 'Elige tu nombre' : 'Cargando…'}</option>
-            {#each nombres ?? [] as n (n.id)}<option value={String(n.id)}>{n.nombre}</option>{/each}
+            {#each visibles as n (n.id)}<option value={String(n.id)}>{n.nombre}</option>{/each}
           </select>
         </div>
         <div class="field">
@@ -134,7 +146,7 @@
     </nav>
     {#if !tabs.length}
       <p class="muted">Tu rol aún no tiene secciones en este panel.</p>
-    {:else}
+    {:else if permitida}
       {#key page.url.pathname}<div class="vista">{@render children()}</div>{/key}
     {/if}
   {/if}
@@ -144,4 +156,11 @@
 
 <style>
   .llave { letter-spacing: .35em; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  .acceso-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 4px 0 16px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+  .acceso-tipo button {
+    padding: 8px 6px; border: 0; border-radius: 9px; background: none; color: var(--muted); font: inherit; font-size: .88rem; font-weight: 600; cursor: pointer;
+    transition: background .2s, color .2s;
+  }
+  .acceso-tipo button:hover { color: var(--text); }
+  .acceso-tipo button[aria-pressed='true'] { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff; }
 </style>

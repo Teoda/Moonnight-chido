@@ -11,6 +11,7 @@ import PDFDocument from 'pdfkit'
 import { Prisma } from '@prisma/client'
 import { prisma } from './db'
 import { aFecha, partes, sumarDias } from './tiempo'
+import { reparacionesSimuladas, type Reparacion } from './paneles'
 
 const CORTE = '06:00'
 const SEMANA_MS = 7 * 86400_000
@@ -51,13 +52,16 @@ export interface Semana {
   }
   pendientes: { total: number; detalle: { codigo: string; fecha: string; cliente: string; concepto: string; monto: number }[] }
   cuentas: { codigo: string; fecha: string; cliente: string; sala: string; sala$: number; extras: number; consumo: number; descuento: number; total: number }[]
+  // opcionales: los reportes guardados antes no los tienen
+  limpieza?: { observaciones: { sala: number; fecha: string; quien: string; texto: string }[] }
+  paneles?: { simulado: true; reparaciones: Reparacion[]; costo: number }
 }
 /** Lo de la semana anterior que se usa para comparar. */
 export type Comparable = Pick<Semana, 'desde' | 'hasta' | 'ingresos' | 'visitas'> & { cobrado: number; cancelaciones: number }
 export interface DatosReporte { actual: Semana; anterior: Comparable }
 
 export async function calcular(desde: Date, hasta: Date, ahora = new Date()): Promise<Semana> {
-  const [rvs, pagos] = await Promise.all([
+  const [rvs, pagos, limpiezas] = await Promise.all([
     prisma.reservacion.findMany({
       where: { inicio: { gte: desde, lt: hasta } }, orderBy: { inicio: 'asc' },
       include: {
@@ -67,6 +71,10 @@ export async function calcular(desde: Date, hasta: Date, ahora = new Date()): Pr
       },
     }),
     prisma.pago.findMany({ where: { creadoEn: { gte: desde, lt: hasta } } }),
+    prisma.limpieza.findMany({
+      where: { terminadaEn: { gte: desde, lt: hasta }, observaciones: { not: null } }, orderBy: { terminadaEn: 'asc' },
+      select: { terminadaEn: true, observaciones: true, sala: { select: { numero: true } }, realizadaPor: { select: { nombre: true } } },
+    }),
   ])
 
   const ing = { salas: D(), tiempoExtra: D(), ALIMENTO: D(), BEBIDA: D(), PAQUETE: D(), descuentos: D(), retenciones: D() }
@@ -151,6 +159,7 @@ export async function calcular(desde: Date, hasta: Date, ahora = new Date()): Pr
   }
 
   ing.retenciones = cancel.retenidoCancelacion.add(cancel.retenidoNoShow)
+  const reparaciones = reparacionesSimuladas(desde, hasta)
   const total = ing.salas.add(ing.tiempoExtra).add(ing.ALIMENTO).add(ing.BEBIDA).add(ing.PAQUETE).sub(ing.descuentos).add(ing.retenciones)
   return {
     desde: desde.toISOString(), hasta: hasta.toISOString(), calculadoEn: ahora.toISOString(),
@@ -171,6 +180,10 @@ export async function calcular(desde: Date, hasta: Date, ahora = new Date()): Pr
     },
     pendientes: { total: n2(pendiente), detalle: out.pend },
     cuentas: out.cuentas,
+    limpieza: {
+      observaciones: limpiezas.map((l) => ({ sala: l.sala.numero, fecha: l.terminadaEn!.toISOString(), quien: l.realizadaPor?.nombre ?? '-', texto: l.observaciones! })),
+    },
+    paneles: { simulado: true, reparaciones, costo: reparaciones.reduce((a, r) => a + r.costo, 0) },
   }
 }
 
@@ -405,6 +418,28 @@ export function crearPdf(d: DatosReporte, op: { automatico: boolean; preliminar?
         ['Total', '', '', '', dinero(t.sala$), dinero(t.extras), dinero(t.consumo), dinero(t.descuento), dinero(t.total)],
       ],
       { resaltar: [s.cuentas.length] },
+    )
+  }
+
+  // 7. observaciones de limpieza
+  const obs = s.limpieza?.observaciones ?? []
+  seccion('Observaciones de limpieza', 'Lo que reportó el personal de limpieza al dejar lista cada sala (control dañado, golpes, piezas por cambiar...).')
+  if (!obs.length) parrafo('No se reportaron observaciones esta semana.')
+  else tabla(
+    [{ t: 'Sala', w: 8 }, { t: 'Fecha', w: 13 }, { t: 'Reportó', w: 17 }, { t: 'Observación', w: 62 }],
+    obs.map((x) => [String(x.sala), fecha(x.fecha), x.quien, x.texto]),
+  )
+
+  // 8. paneles solares (simulado)
+  if (s.paneles) {
+    const rp = s.paneles.reparaciones
+    seccion('Paneles solares: reparaciones y mantenimiento (simulado)',
+      'Datos de ejemplo: los paneles aún no están conectados al sistema.' + (rp.length ? ` Costo de la semana: ${dinero(s.paneles.costo)}.` : ''))
+    if (!rp.length) parrafo('Sin reparaciones ni mantenimientos esta semana.')
+    else tabla(
+      [{ t: 'Panel', w: 8 }, { t: 'Fecha', w: 13 }, { t: 'Tipo', w: 19 }, { t: 'Detalle', w: 32 }, { t: 'Estado', w: 13 }, { t: 'Costo', w: 15, a: 'right' }],
+      [...rp.map((x) => [String(x.panel), fecha(x.fecha), x.tipo, x.detalle, x.estado, dinero(x.costo)]), ['Total', '', '', '', '', dinero(s.paneles.costo)]],
+      { resaltar: [rp.length] },
     )
   }
 

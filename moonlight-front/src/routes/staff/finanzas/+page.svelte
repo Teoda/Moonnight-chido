@@ -4,7 +4,7 @@
   import type { Kpis } from '#lib/api/types.ts'
   import { estadoTxt, metodoTxt } from '#lib/utils/estados.ts'
   import { money } from '#lib/utils/formato.ts'
-  import { contar, inclinar, revelar } from '#lib/fx/efectos.ts'
+  import { contar, inclinar, revelar, tarjetas } from '#lib/fx/efectos.ts'
   import Badge from '#lib/components/Badge.svelte'
 
   let k = $state<Kpis | null>(null), error = $state('')
@@ -28,7 +28,7 @@
   </div>
   <div class="card table-wrap mt-4">
     <h3>Pagos por tipo y método</h3>
-    <table>
+    <table use:tarjetas>
       <thead><tr><th>Tipo</th><th>Método</th><th>Estado</th><th>Monto</th></tr></thead>
       <tbody>
         {#each k.pagos as p, i (i)}

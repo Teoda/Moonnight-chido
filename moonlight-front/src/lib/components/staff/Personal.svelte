@@ -7,7 +7,7 @@
   import { avisar } from '#lib/store/ui.ts'
   import { ROLES } from '#lib/utils/estados.ts'
   import { fmtFecha, fmtHora, tiempoTxt } from '#lib/utils/formato.ts'
-  import { ahora } from '#lib/fx/efectos.ts'
+  import { ahora, tarjetas } from '#lib/fx/efectos.ts'
   import Modal from '../Modal.svelte'
   import { confirmar } from '../confirmar.svelte.ts'
 
@@ -83,7 +83,7 @@
         <p class="muted small">Aún no hay turnos registrados.</p>
       {:else}
         <div class="table-wrap">
-          <table>
+          <table use:tarjetas>
             <thead><tr><th>Empleado</th><th>Día</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr></thead>
             <tbody>
               {#each turnos.historial as t (t.id)}

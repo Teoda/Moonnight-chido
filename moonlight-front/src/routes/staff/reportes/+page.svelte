@@ -6,7 +6,7 @@
   import { dispatch } from '#lib/store/index.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { money, fmtFechaHora } from '#lib/utils/formato.ts'
-  import { contar, revelar } from '#lib/fx/efectos.ts'
+  import { contar, revelar, tarjetas } from '#lib/fx/efectos.ts'
   import { confirmar } from '#lib/components/confirmar.svelte.ts'
 
   let lista = $state<ReporteSemanal[] | null>(null), error = $state(''), generando = $state(false)
@@ -43,7 +43,7 @@
 <p class="subtitulo mt-2 max-w-[75ch]">
   Cada domingo a las 06:00 se genera automáticamente el PDF de la semana que terminó (de domingo a sábado, cada día con su madrugada):
   ingresos por salas, alimentos, bebidas y paquetes, descuentos, pagos pendientes, cancelaciones, métodos de pago,
-  estados de cuenta y la comparación con la semana anterior.
+  estados de cuenta, la comparación con la semana anterior, las observaciones de limpieza y las reparaciones de los paneles solares (simuladas).
 </p>
 
 {#if error}<div class="empty err">{error}</div>
@@ -77,12 +77,13 @@
         </div>
       {/each}
       <p class="muted small m-0">Descuentos aplicados: {money(ultimo.ingresos.descuentos)} · Retenciones por cancelación y no-show: {money(ultimo.ingresos.retenciones)}</p>
+      <p class="muted small m-0">Observaciones de limpieza: {ultimo.observacionesLimpieza ?? 0} · Reparaciones de paneles solares (simulado): {money(ultimo.costoPaneles ?? 0)}</p>
     </div>
   </section>
 
   <div class="card table-wrap mt-4">
     <h3>Historial</h3>
-    <table>
+    <table use:tarjetas>
       <thead><tr><th>Semana</th><th>Ingresos</th><th>Vs anterior</th><th>Cobrado neto</th><th>Visitas</th><th>Cancelaciones</th><th>Por cobrar</th><th>Generado</th><th></th></tr></thead>
       <tbody>
         {#each lista as r (r.id)}
