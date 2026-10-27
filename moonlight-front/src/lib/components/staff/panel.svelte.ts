@@ -5,7 +5,7 @@ import type { Rol } from '../../api/types.ts'
 
 export const PESTANAS = [
   { ruta: 'recepcion', titulo: 'Recepción', roles: ['RECEPCION', 'OPERACIONES'], superadmin: 'no' },
-  { ruta: 'agenda', titulo: 'Agenda', roles: ['RECEPCION', 'OPERACIONES', 'FINANZAS'], superadmin: 'no' },
+  { ruta: 'agenda', titulo: 'Agenda', roles: ['RECEPCION', 'OPERACIONES', 'FINANZAS'], superadmin: 'si' }, // él solo mira
   { ruta: 'barra', titulo: 'Barra', roles: ['BARRA', 'RECEPCION'], superadmin: 'no' },
   { ruta: 'salas', titulo: 'Salas', roles: ['OPERACIONES', 'RECEPCION', 'LIMPIEZA'], superadmin: 'si' }, // él solo mira
   { ruta: 'limpieza', titulo: 'Limpieza', roles: ['LIMPIEZA', 'OPERACIONES'], superadmin: 'no' },

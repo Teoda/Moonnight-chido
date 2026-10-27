@@ -11,6 +11,7 @@ import { MIN, inicioDiaLocal, rangoMesLocal, ventanaQueContiene } from '../tiemp
 import { nuevaLlave } from '../llaves'
 import bcrypt from 'bcryptjs'
 import { crearPdf, datosReporte, etiquetaPeriodo, generarReporte, semanaQueTermina, ultimoCorte, variacion, type DatosReporte } from '../reportes'
+import { NOMINAL_W, panelesSimulados, reparacionesSimuladas } from '../paneles'
 
 const r = Router()
 r.use(requireStaff, csrf)
@@ -315,6 +316,8 @@ r.get('/salas', requireRol('OPERACIONES', 'RECEPCION', 'LIMPIEZA'), ah(async (_r
     include: {
       tipoSala: true,
       reservaciones: { where: { estado: { in: ['CONFIRMADA', 'EN_CURSO'] }, fin: { gt: ahora }, inicio: { lt: new Date(ahora.getTime() + 24 * 36e5) } }, orderBy: { inicio: 'asc' }, take: 2, select: { codigo: true, estado: true, inicio: true, fin: true, artistas: true, tematica: { select: { nombre: true } } } },
+      // la última observación que dejó limpieza (control dañado, golpe en la tele...)
+      limpiezas: { where: { estado: 'LISTA', observaciones: { not: null } }, orderBy: { terminadaEn: 'desc' }, take: 1, select: { observaciones: true, terminadaEn: true, realizadaPor: { select: { nombre: true } } } },
     },
   }))
 }))
@@ -349,12 +352,14 @@ r.post('/limpieza/:id/iniciar', LIMP, ah(async (req, res) => {
   res.json({ ok: true })
 }))
 // Al terminar, la sala vuelve a ACTIVA y ya puede recibir el siguiente ingreso.
+// Quien limpió puede dejar observaciones del estado de la sala (texto libre).
 r.post('/limpieza/:id/terminar', LIMP, ah(async (req, res) => {
   const id = idP(req)
+  const { observaciones } = z.object({ observaciones: z.string().trim().max(500).optional() }).parse(req.body ?? {})
   await prisma.$transaction(async (tx) => {
     const l = await tx.limpieza.findUnique({ where: { id } })
     if (!l || l.estado === 'LISTA') throw new HttpError(409, 'La tarea ya está terminada')
-    await tx.limpieza.update({ where: { id }, data: { estado: 'LISTA', terminadaEn: new Date(), realizadaPorId: yo(req).id } })
+    await tx.limpieza.update({ where: { id }, data: { estado: 'LISTA', terminadaEn: new Date(), realizadaPorId: yo(req).id, observaciones: observaciones || null } })
     await tx.sala.updateMany({ where: { id: l.salaId, estado: 'LIMPIEZA' }, data: { estado: 'ACTIVA' } })
   })
   res.json({ ok: true })
@@ -397,6 +402,7 @@ r.get('/reportes', ADMIN, ah(async (_req, res) => {
       ingresos: s.ingresos, ingresosAnterior: p.ingresos.total, variacion: variacion(s.ingresos.total, p.ingresos.total),
       cobrado: s.cobros.neto, visitas: s.visitas, pendiente: s.pendientes.total,
       cancelaciones: s.cancelaciones.porCliente + s.cancelaciones.vencidas + s.cancelaciones.noShow,
+      observacionesLimpieza: s.limpieza?.observaciones.length ?? 0, costoPaneles: s.paneles?.costo ?? 0,
     }
   }))
 }))
@@ -441,6 +447,11 @@ r.post('/turno/terminar', ah(async (req, res) => {
 
 // ───────────── PERSONAL Y TURNOS (solo súper administrador) ─────────────
 // Quién está en turno ahora y los turnos de los últimos días (por defecto 7, máximo 62).
+// Paneles solares del techo (simulado, ver src/paneles.ts) con las reparaciones de la semana en curso.
+r.get('/paneles', requireSuper, ah(async (_req, res) => {
+  res.json({ simulado: true, nominal: NOMINAL_W, paneles: panelesSimulados(), reparaciones: reparacionesSimuladas(ultimoCorte(), new Date()) })
+}))
+
 r.get('/turnos', requireSuper, ah(async (req, res) => {
   const { dias } = z.object({ dias: z.coerce.number().int().min(1).max(62).default(7) }).parse(req.query)
   const desde = new Date(Date.now() - dias * 864e5)

@@ -1,81 +1,88 @@
-<!-- Paneles solares (solo súper administrador): los 15 paneles del techo con un marco de color según su estado.
-     Por ahora con datos de ejemplo; cuando haya inversor conectado, la lista vendrá de la API. -->
+<!-- Paneles solares (solo súper administración): los 15 paneles del techo con un marco de color según su estado
+     y las reparaciones de la semana. Los datos vienen de la API, que por ahora los simula (moonlight-db/src/paneles.ts). -->
 <script lang="ts">
-  import { fmtFecha } from '#lib/utils/formato.ts'
+  import { api } from '#lib/api/client.ts'
+  import type { EstadoPanel, PanelesSolares } from '#lib/api/types.ts'
+  import { fmtFecha, money } from '#lib/utils/formato.ts'
 
-  type Estado = 'ok' | 'revisar' | 'reparacion'
-  interface Panel { numero: number; estado: Estado; watts: number; revisado: string; nota?: string }
-
-  const NOMINAL = 550 // W por panel
-  const ESTADOS: Record<Estado, { nombre: string; texto: string }> = {
+  const ESTADOS: Record<EstadoPanel, { nombre: string; texto: string }> = {
     ok: { nombre: 'Funcionando', texto: 'Funciona correctamente.' },
     revisar: { nombre: 'Posible mantenimiento', texto: 'Produce menos de lo esperado; conviene revisarlo.' },
     reparacion: { nombre: 'En reparación', texto: 'Fuera de servicio hasta que lo reparen.' },
   }
 
-  // datos de ejemplo
-  const PANELES: Panel[] = [
-    { numero: 1, estado: 'ok', watts: 468, revisado: '2026-10-02' },
-    { numero: 2, estado: 'ok', watts: 472, revisado: '2026-10-02' },
-    { numero: 3, estado: 'ok', watts: 455, revisado: '2026-10-02' },
-    { numero: 4, estado: 'revisar', watts: 301, revisado: '2026-09-18', nota: 'Suciedad acumulada: produce 35 % menos que sus vecinos.' },
-    { numero: 5, estado: 'ok', watts: 461, revisado: '2026-10-02' },
-    { numero: 6, estado: 'ok', watts: 470, revisado: '2026-10-02' },
-    { numero: 7, estado: 'ok', watts: 466, revisado: '2026-10-02' },
-    { numero: 8, estado: 'reparacion', watts: 0, revisado: '2026-10-15', nota: 'Vidrio estrellado por granizo. Técnico agendado; refacción en camino.' },
-    { numero: 9, estado: 'ok', watts: 459, revisado: '2026-10-02' },
-    { numero: 10, estado: 'ok', watts: 463, revisado: '2026-10-02' },
-    { numero: 11, estado: 'ok', watts: 457, revisado: '2026-10-02' },
-    { numero: 12, estado: 'revisar', watts: 268, revisado: '2026-09-18', nota: 'Conector con temperatura alta en la última revisión.' },
-    { numero: 13, estado: 'ok', watts: 471, revisado: '2026-10-02' },
-    { numero: 14, estado: 'revisar', watts: 322, revisado: '2026-09-18', nota: 'Sombra parcial por la tarde (árbol del vecino).' },
-    { numero: 15, estado: 'ok', watts: 464, revisado: '2026-10-02' },
-  ]
-
+  let datos = $state<PanelesSolares | null>(null), error = $state('')
   let elegido = $state<number | null>(null)
-  const sel = $derived(PANELES.find((p) => p.numero === elegido) ?? null)
-  const total = PANELES.reduce((s, p) => s + p.watts, 0)
-  const cuenta = (e: Estado) => PANELES.filter((p) => p.estado === e).length
+  $effect(() => { api.get<PanelesSolares>('/staff/paneles').then((d) => (datos = d), (e) => (error = (e as Error).message)) })
+
+  const paneles = $derived(datos?.paneles ?? [])
+  const nominal = $derived(datos?.nominal ?? 0)
+  const sel = $derived(paneles.find((p) => p.numero === elegido) ?? null)
+  const total = $derived(paneles.reduce((s, p) => s + p.watts, 0))
+  const cuenta = (e: EstadoPanel) => paneles.filter((p) => p.estado === e).length
   const kw = (w: number) => `${(w / 1000).toLocaleString('es-MX', { maximumFractionDigits: 2 })} kW`
 </script>
 
 <div class="row between">
   <h2>Paneles solares</h2>
-  <span class="badge warn">Datos de ejemplo</span>
+  {#if datos?.simulado}<span class="badge warn">Datos de ejemplo</span>{/if}
 </div>
-<p class="muted small mt-1">Así se verá el estado de los paneles del techo. Todavía no están conectados al sistema; los números de abajo son de prueba.</p>
+<p class="muted small mt-1">Estado de los paneles del techo. Todavía no están conectados al sistema; los números son de prueba.</p>
 
-<div class="resumen">
-  <div class="card dato"><span class="small muted">Produciendo ahora</span><b>{kw(total)}</b><span class="small muted">de {kw(NOMINAL * PANELES.length)} posibles</span></div>
-  <ul class="leyenda" aria-label="Estado de los paneles">
-    {#each Object.entries(ESTADOS) as [k, e] (k)}<li class={k}><i aria-hidden="true"></i>{e.nombre} <b>{cuenta(k as Estado)}</b></li>{/each}
-  </ul>
-</div>
-
-<div class="techo" role="group" aria-label="Paneles del techo">
-  {#each PANELES as p (p.numero)}
-    <button class="panel {p.estado}" type="button" aria-pressed={elegido === p.numero}
-      aria-label="Panel {p.numero}: {ESTADOS[p.estado].nombre}, {p.watts} W" onclick={() => (elegido = elegido === p.numero ? null : p.numero)}>
-      <span class="celdas" aria-hidden="true"></span>
-      <span class="panel-num">{String(p.numero).padStart(2, '0')}</span>
-    </button>
-  {/each}
-</div>
-
-{#if sel}
-  <div class="card detalle mt-4 {sel.estado}">
-    <div class="row between">
-      <h3 class="m-0">Panel {sel.numero}</h3>
-      <button class="x" type="button" aria-label="Cerrar detalle" onclick={() => (elegido = null)}>×</button>
-    </div>
-    <p class="estado-txt mt-2 mb-0"><i aria-hidden="true"></i><b>{ESTADOS[sel.estado].nombre}</b></p>
-    <p class="small muted mt-1 mb-2">{ESTADOS[sel.estado].texto}</p>
-    <div class="prog" aria-hidden="true"><div class="prog-fill" style:width="{(sel.watts / NOMINAL * 100).toFixed(0)}%"></div></div>
-    <p class="small m-0">Produciendo <b>{sel.watts} W</b> de {NOMINAL} W · Última revisión: {fmtFecha(sel.revisado + 'T12:00:00')}</p>
-    {#if sel.nota}<p class="small muted mt-2 mb-0">{sel.nota}</p>{/if}
-  </div>
+{#if error}<div class="card empty err">{error}</div>
+{:else if !datos}<div class="skeleton techo-cargando"></div>
 {:else}
-  <p class="small muted mt-3">Toca un panel para ver cuánto produce, su última revisión y notas.</p>
+  <div class="resumen">
+    <div class="card dato"><span class="small muted">Produciendo ahora</span><b>{kw(total)}</b><span class="small muted">de {kw(nominal * paneles.length)} posibles</span></div>
+    <ul class="leyenda" aria-label="Estado de los paneles">
+      {#each Object.entries(ESTADOS) as [k, e] (k)}<li class={k}><i aria-hidden="true"></i>{e.nombre} <b>{cuenta(k as EstadoPanel)}</b></li>{/each}
+    </ul>
+  </div>
+
+  <div class="techo" role="group" aria-label="Paneles del techo">
+    {#each paneles as p (p.numero)}
+      <button class="panel {p.estado}" type="button" aria-pressed={elegido === p.numero}
+        aria-label="Panel {p.numero}: {ESTADOS[p.estado].nombre}, {p.watts} W" onclick={() => (elegido = elegido === p.numero ? null : p.numero)}>
+        <span class="celdas" aria-hidden="true"></span>
+        <span class="panel-num">{String(p.numero).padStart(2, '0')}</span>
+      </button>
+    {/each}
+  </div>
+
+  {#if sel}
+    {@const reps = datos.reparaciones.filter((r) => r.panel === sel.numero)}
+    <div class="card detalle mt-4 {sel.estado}">
+      <div class="row between">
+        <h3 class="m-0">Panel {sel.numero}</h3>
+        <button class="x" type="button" aria-label="Cerrar detalle" onclick={() => (elegido = null)}>×</button>
+      </div>
+      <p class="estado-txt mt-2 mb-0"><i aria-hidden="true"></i><b>{ESTADOS[sel.estado].nombre}</b></p>
+      <p class="small muted mt-1 mb-2">{ESTADOS[sel.estado].texto}</p>
+      <div class="prog" aria-hidden="true"><div class="prog-fill" style:width="{(sel.watts / nominal * 100).toFixed(0)}%"></div></div>
+      <p class="small m-0">Produciendo <b>{sel.watts} W</b> de {nominal} W · Última revisión: {fmtFecha(sel.revisado + 'T12:00:00')}</p>
+      {#if sel.nota}<p class="small muted mt-2 mb-0">{sel.nota}</p>{/if}
+      {#each reps as r (r.fecha)}<p class="small mt-2 mb-0">🔧 {r.tipo} · {r.detalle} · {r.estado} · {money(r.costo)}</p>{/each}
+    </div>
+  {:else}
+    <p class="small muted mt-3">Toca un panel para ver cuánto produce, su última revisión y notas.</p>
+  {/if}
+
+  <div class="card table-wrap mt-4 reparaciones">
+    <h3>Reparaciones y mantenimiento de esta semana</h3>
+    {#if !datos.reparaciones.length}<p class="muted small m-0">Sin reparaciones esta semana.</p>
+    {:else}
+      <table>
+        <thead><tr><th>Panel</th><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Estado</th><th class="text-right">Costo</th></tr></thead>
+        <tbody>
+          {#each datos.reparaciones as r (r.fecha)}
+            <tr><td>{r.panel}</td><td>{fmtFecha(r.fecha)}</td><td>{r.tipo}</td><td>{r.detalle}</td><td>{r.estado}</td><td class="text-right tabular-nums">{money(r.costo)}</td></tr>
+          {/each}
+          <tr><td colspan="5"><b>Total</b></td><td class="text-right tabular-nums"><b>{money(datos.reparaciones.reduce((a, r) => a + r.costo, 0))}</b></td></tr>
+        </tbody>
+      </table>
+      <p class="muted small mt-2 mb-0">También aparecen en el reporte semanal (PDF).</p>
+    {/if}
+  </div>
 {/if}
 
 <style>
@@ -124,7 +131,9 @@
   .panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .panel[aria-pressed='true'] { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--text), 0 0 22px var(--luz); }
 
-  .detalle { max-width: 720px; border-left: 4px solid var(--luz); }
+  .detalle, .reparaciones { max-width: 720px; }
+  .detalle { border-left: 4px solid var(--luz); }
+  .techo-cargando { height: 420px; max-width: 720px; border-radius: var(--radius); }
   .prog-fill { background: var(--luz); }
   @keyframes aviso { 50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 0 4px color-mix(in oklab, var(--luz) 30%, transparent); } }
 </style>

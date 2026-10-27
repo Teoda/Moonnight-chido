@@ -5,7 +5,7 @@
   import { dispatch, seleccionar } from '#lib/store/index.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { musicaTxt } from '#lib/utils/carta.ts'
-  import { falta, fmtHora } from '#lib/utils/formato.ts'
+  import { falta, fmtFecha, fmtHora } from '#lib/utils/formato.ts'
   import { ahora, cambio } from '#lib/fx/efectos.ts'
   import Badge from '#lib/components/Badge.svelte'
   import Progreso from '#lib/components/Progreso.svelte'
@@ -97,6 +97,7 @@
         <button class="cuarto {sit}" type="button" aria-pressed={elegida === s.numero} aria-label="Sala {s.numero}: {txt}"
           onclick={() => (elegida = elegida === s.numero ? null : s.numero)}>
           <span class="cuarto-num">{String(s.numero).padStart(2, '0')}</span>
+          {#if s.limpiezas?.length}<span class="aviso-obs" title="Limpieza dejó una observación" aria-hidden="true">!</span>{/if}
           <span class="pantalla" aria-hidden="true"></span>
           <span class="sillon" aria-hidden="true"><span class="mesa"></span></span>
           <span class="cuarto-txt">{txt}</span>
@@ -148,6 +149,13 @@
         <p class="small muted mt-2 mb-0">{resta > 0 ? `Próxima en ${falta(resta)} (${fmtHora(prox.inicio)})` : 'Llegando'} · {prox.codigo} · 🎤 {musicaTxt(prox)}</p>
       {:else}
         <p class="small muted mt-2 mb-0">Sin próximas reservaciones</p>
+      {/if}
+      {#if sel.limpiezas?.[0]}
+        {@const o = sel.limpiezas[0]}
+        <div class="obs mt-3">
+          <p class="small m-0"><b>Observación de limpieza</b> <span class="muted">· {fmtFecha(o.terminadaEn)} {fmtHora(o.terminadaEn)}{o.realizadaPor ? ` · ${o.realizadaPor.nombre}` : ''}</span></p>
+          <p class="small m-0 mt-1">{o.observaciones}</p>
+        </div>
       {/if}
       {#if ops && sel.estado !== 'LIMPIEZA'}
         <button class="btn sm mt-3 {sel.estado === 'MANTENIMIENTO' ? 'ok' : 'danger'}" type="button" onclick={() => mantenimiento(sel)}>
@@ -237,5 +245,11 @@
   .mant .sillon, .mant .pantalla { opacity: .35; }
 
   .detalle { border-color: var(--line); }
+  .aviso-obs {
+    position: absolute; top: 6px; right: 6px; z-index: 1; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--warn); color: #1a1205; font-size: .7rem; font-weight: 800; box-shadow: 0 0 8px var(--warn);
+  }
+  .abajo .aviso-obs { top: auto; bottom: 6px; }
+  .obs { padding: 10px 12px; border: 1px solid rgba(255, 181, 71, .45); border-radius: 10px; background: rgba(255, 181, 71, .07); }
   @keyframes latir { 50% { opacity: .55; box-shadow: 0 0 4px var(--luz); } }
 </style>

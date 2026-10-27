@@ -40,12 +40,15 @@
     dispatch(cargarCatalogo())
   })
 
-  // ── acceso: nombre del trabajador + llave de 8 números ──
-  let nombres = $state<{ id: number; nombre: string }[] | null>(null)
+  // ── acceso: nombre del trabajador + llave de 8 números; atajo arriba para la súper administración ──
+  let nombres = $state<{ id: number; nombre: string; super: boolean }[] | null>(null)
   let usuarioId = $state(''), llave = $state('')
+  let comoSuper = $state(false)
+  const visibles = $derived(nombres?.filter((n) => n.super === comoSuper) ?? [])
+  function cambiarAcceso(s: boolean) { comoSuper = s; usuarioId = ''; llave = ''; error = '' }
   $effect(() => {
     if ($revisada && !$usuario && !nombres)
-      api.get<{ id: number; nombre: string }[]>('/acceso/personal').then((l) => (nombres = l), () => (nombres = []))
+      api.get<{ id: number; nombre: string; super: boolean }[]>('/acceso/personal').then((l) => (nombres = l), () => (nombres = []))
   })
 
   async function entrar(e: SubmitEvent) {
@@ -109,14 +112,18 @@
   {:else if !$usuario}
     <div class="card pad-lg mx-auto my-[8vh] max-w-[400px]">
       <img class="logo-img mx-auto -mt-1.5 mb-2 w-full max-w-[300px]" src="/img/logo.jpg" alt="Moonlight Karaoke &amp; Social Lounge" width="1000" height="607" />
-      <h2 class="text-center text-[1.3rem]">Acceso del personal</h2>
+      <div class="acceso-tipo" role="group" aria-label="Tipo de acceso">
+        <button type="button" aria-pressed={!comoSuper} onclick={() => cambiarAcceso(false)}>Personal</button>
+        <button type="button" aria-pressed={comoSuper} onclick={() => cambiarAcceso(true)}>Súper administración</button>
+      </div>
+      <h2 class="text-center text-[1.3rem]">{comoSuper ? 'Súper administración' : 'Acceso del personal'}</h2>
       <p class="muted small text-center">Elige tu nombre y escribe tu llave de 8 números.</p>
       <form onsubmit={entrar}>
         <div class="field">
-          <label for="l-nombre">Trabajador</label>
+          <label for="l-nombre">{comoSuper ? 'Administradora' : 'Trabajador'}</label>
           <select id="l-nombre" bind:value={usuarioId} required disabled={!nombres}>
             <option value="" disabled>{nombres ? 'Elige tu nombre' : 'Cargando…'}</option>
-            {#each nombres ?? [] as n (n.id)}<option value={String(n.id)}>{n.nombre}</option>{/each}
+            {#each visibles as n (n.id)}<option value={String(n.id)}>{n.nombre}</option>{/each}
           </select>
         </div>
         <div class="field">
@@ -148,4 +155,11 @@
 
 <style>
   .llave { letter-spacing: .35em; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  .acceso-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 4px 0 16px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+  .acceso-tipo button {
+    padding: 8px 6px; border: 0; border-radius: 9px; background: none; color: var(--muted); font: inherit; font-size: .88rem; font-weight: 600; cursor: pointer;
+    transition: background .2s, color .2s;
+  }
+  .acceso-tipo button:hover { color: var(--text); }
+  .acceso-tipo button[aria-pressed='true'] { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff; }
 </style>

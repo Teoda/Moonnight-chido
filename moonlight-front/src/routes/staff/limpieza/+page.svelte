@@ -29,9 +29,12 @@
     tareas = ls
   }
 
+  let observaciones = $state<Record<number, string>>({}) // lo que encontró en la sala (texto libre)
+
   async function paso(l: TareaLimpieza, accion: 'iniciar' | 'terminar') {
     try {
-      await api.post(`/staff/limpieza/${l.id}/${accion}`)
+      await api.post(`/staff/limpieza/${l.id}/${accion}`, accion === 'terminar' ? { observaciones: observaciones[l.id]?.trim() || undefined } : {})
+      if (accion === 'terminar') delete observaciones[l.id]
       dispatch(avisar(accion === 'iniciar' ? 'Limpieza iniciada' : `Sala ${l.sala.numero} lista ✨`, 'ok'))
       cargar(true)
     } catch (e) { dispatch(avisar((e as Error).message, 'bad')) }
@@ -56,6 +59,11 @@
             {l.estado === 'EN_PROCESO' && l.iniciadaEn ? `Limpiando hace ${falta($ahora - new Date(l.iniciadaEn).getTime())}` : `Esperando hace ${falta($ahora - new Date(l.creadaEn).getTime())}`}
           </span>
         </p>
+        <div class="field mb-3">
+          <label for="obs-{l.id}">Observaciones de la sala <span class="muted">(opcional)</span></label>
+          <textarea id="obs-{l.id}" rows="2" maxlength="500" bind:value={observaciones[l.id]}
+            placeholder="Ej.: La sala cuenta con un control dañado, realizar mantenimiento preventivo o cambio de pieza."></textarea>
+        </div>
         <div class="row">
           {#if l.estado === 'PENDIENTE'}<button class="btn sm" type="button" onclick={() => paso(l, 'iniciar')}>Iniciar</button>{/if}
           <button class="btn sm ok" type="button" onclick={() => paso(l, 'terminar')}>Sala lista</button>

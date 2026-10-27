@@ -7,12 +7,12 @@
   import { musicaTxt } from '#lib/utils/carta.ts'
   import { fmtHora, hoyLocal } from '#lib/utils/formato.ts'
   import Badge from '#lib/components/Badge.svelte'
-  import { puede, recepcion } from '#lib/components/staff/panel.svelte.ts'
+  import { esSuper, puede, recepcion } from '#lib/components/staff/panel.svelte.ts'
 
   const usuario = seleccionar((s) => s.sesion.usuario)
   let fecha = $state(hoyLocal())
   let lista = $state<ReservacionStaff[] | null>(null), error = $state(''), cargando = $state(false)
-  const abrir = $derived(puede($usuario?.rol, 'RECEPCION', 'OPERACIONES'))
+  const abrir = $derived(puede($usuario?.rol, 'RECEPCION', 'OPERACIONES') && !esSuper($usuario?.rol)) // súper administración solo mira
 
   async function cargar() {
     const desde = new Date(`${fecha || hoyLocal()}T00:00:00-06:00`)
