@@ -12,6 +12,7 @@ import { nuevaLlave } from '../llaves'
 import bcrypt from 'bcryptjs'
 import { crearPdf, datosReporte, etiquetaPeriodo, generarReporte, semanaQueTermina, ultimoCorte, variacion, type DatosReporte } from '../reportes'
 import { NOMINAL_W, panelesSimulados, reparacionesSimuladas } from '../paneles'
+import { AREAS, HORAS_TURNO, TURNOS, asignables, diasAbiertos, propuesta } from '../horario'
 
 const r = Router()
 r.use(requireStaff, csrf)
@@ -445,13 +446,51 @@ r.post('/turno/terminar', ah(async (req, res) => {
   res.json(await prisma.turno.update({ where: { id: abierto.id }, data: { fin: new Date() } }))
 }))
 
+// ───────────── HORARIO DEL PERSONAL ─────────────
+// Todo el personal lo ve (cada quien su turno); solo el súper administrador lo cambia. `personal`: a quién se puede asignar.
+r.get('/horario', ah(async (_req, res) => {
+  const [dias, asignaciones, personal] = await Promise.all([
+    diasAbiertos(prisma),
+    prisma.horarioPersonal.findMany({ select: { diaSemana: true, turno: true, area: true, usuario: { select: { id: true, nombre: true } } } }),
+    asignables(prisma),
+  ])
+  res.json({ turnos: TURNOS, areas: AREAS, horasTurno: HORAS_TURNO, dias, asignaciones, personal })
+}))
+
+// Asigna (o deja vacío con usuarioId null) un lugar: día + turno + área. Nadie puede tener dos turnos el mismo día.
+r.patch('/horario', requireSuper, ah(async (req, res) => {
+  const { diaSemana, turno, area, usuarioId } = z.object({
+    diaSemana: z.number().int().min(0).max(6), turno: z.union([z.literal(1), z.literal(2)]),
+    area: z.enum(['PLANTA_BAJA', 'SALAS']), usuarioId: z.number().int().positive().nullable(),
+  }).parse(req.body)
+  if (!(await diasAbiertos(prisma)).includes(diaSemana)) throw new HttpError(400, 'Ese día el negocio está cerrado')
+  const lugar = { diaSemana_turno_area: { diaSemana, turno, area } }
+  if (usuarioId === null) {
+    await prisma.horarioPersonal.deleteMany({ where: { diaSemana, turno, area } })
+    return void res.json({ ok: true })
+  }
+  const u = (await asignables(prisma)).find((x) => x.id === usuarioId)
+  if (!u) throw new HttpError(400, 'Esa persona no se puede asignar')
+  const ocupado = await prisma.horarioPersonal.findFirst({ where: { diaSemana, usuarioId, NOT: { turno, area } } })
+  if (ocupado) throw new HttpError(409, `${u.nombre} ya tiene turno ese día`)
+  await prisma.horarioPersonal.upsert({ where: lugar, create: { diaSemana, turno, area, usuarioId }, update: { usuarioId } })
+  res.json({ ok: true })
+}))
+
+// Reemplaza todo el horario por un reparto parejo entre el personal actual.
+r.post('/horario/propuesta', requireSuper, ah(async (_req, res) => {
+  const filas = propuesta(await diasAbiertos(prisma), await asignables(prisma))
+  await prisma.$transaction([prisma.horarioPersonal.deleteMany({}), prisma.horarioPersonal.createMany({ data: filas })])
+  res.json({ ok: true, lugares: filas.length })
+}))
+
 // ───────────── PERSONAL Y TURNOS (solo súper administrador) ─────────────
-// Quién está en turno ahora y los turnos de los últimos días (por defecto 7, máximo 62).
 // Paneles solares del techo (simulado, ver src/paneles.ts) con las reparaciones de la semana en curso.
 r.get('/paneles', requireSuper, ah(async (_req, res) => {
   res.json({ simulado: true, nominal: NOMINAL_W, paneles: panelesSimulados(), reparaciones: reparacionesSimuladas(ultimoCorte(), new Date()) })
 }))
 
+// Quién está en turno ahora y los turnos de los últimos días (por defecto 7, máximo 62).
 r.get('/turnos', requireSuper, ah(async (req, res) => {
   const { dias } = z.object({ dias: z.coerce.number().int().min(1).max(62).default(7) }).parse(req.query)
   const desde = new Date(Date.now() - dias * 864e5)

@@ -2,7 +2,9 @@
      El súper administrador ve quién está en turno y el historial en "Personal". -->
 <script lang="ts">
   import { api } from '#lib/api/client.ts'
-  import { dispatch } from '#lib/store/index.ts'
+  import type { HorarioPersonal } from '#lib/api/types.ts'
+  import { dispatch, seleccionar } from '#lib/store/index.ts'
+  import { AREAS, momentoOperativo } from '#lib/utils/horario.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { fmtHora, tiempoTxt } from '#lib/utils/formato.ts'
   import { ahora } from '#lib/fx/efectos.ts'
@@ -13,6 +15,18 @@
   let enviando = $state(false)
 
   $effect(() => { api.get<Turno | null>('/staff/turno').then((t) => (turno = t ?? null), () => (turno = null)) })
+
+  // lo que le toca hoy según el horario planeado (pestaña Horario)
+  let horario = $state<HorarioPersonal | null>(null)
+  const usuario = seleccionar((s) => s.sesion.usuario)
+  $effect(() => { api.get<HorarioPersonal>('/staff/horario').then((h) => (horario = h), () => {}) })
+  const miTurnoHoy = $derived.by(() => {
+    if (!horario || !$usuario) return null
+    const dia = momentoOperativo($ahora).dia
+    const a = horario.asignaciones.find((x) => x.diaSemana === dia && x.usuario.id === $usuario.id)
+    const t = a && horario.turnos.find((x) => x.n === a.turno)
+    return a && t ? `Hoy te toca el turno ${t.n} (${t.inicio}–${t.fin}) en ${AREAS[a.area].nombre}` : horario.dias.includes(dia) ? 'Hoy no tienes turno asignado' : null
+  })
 
   // minutos en turno, redondeados hacia abajo al minuto
   const minutos = $derived(turno ? Math.max(0, Math.floor(($ahora - new Date(turno.inicio).getTime()) / 60_000)) : 0)
@@ -46,6 +60,7 @@
       <span class="flex-1">No has iniciado tu turno.</span>
       <button class="btn sm primary" type="button" disabled={enviando} onclick={iniciar}>Iniciar turno</button>
     {/if}
+    {#if miTurnoHoy}<a class="hoy small" href="/staff/horario">{miTurnoHoy} · Ver horario</a>{/if}
   </div>
 {/if}
 
@@ -55,5 +70,7 @@
     border: 1px solid rgba(255, 181, 71, .45); border-radius: 12px; background: rgba(255, 181, 71, .06); font-size: .92rem;
   }
   .turno.activo { border-color: rgba(79, 209, 165, .45); background: rgba(79, 209, 165, .06); }
+  .hoy { flex-basis: 100%; color: var(--muted); }
+  .hoy:hover { color: var(--text); }
   .punto { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(79, 209, 165, .2); }
 </style>

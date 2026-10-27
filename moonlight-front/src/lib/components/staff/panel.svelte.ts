@@ -11,6 +11,7 @@ export const PESTANAS = [
   { ruta: 'limpieza', titulo: 'Limpieza', roles: ['LIMPIEZA', 'OPERACIONES'], superadmin: 'no' },
   { ruta: 'finanzas', titulo: 'Finanzas', roles: ['FINANZAS'], superadmin: 'si' },
   { ruta: 'reportes', titulo: 'Reportes', roles: [], superadmin: 'si' }, // solo Administración
+  { ruta: 'horario', titulo: 'Horario', roles: ['OPERACIONES', 'FINANZAS', 'RECEPCION', 'BARRA', 'MARKETING', 'LIMPIEZA'], superadmin: 'si' }, // todos lo ven; solo él lo edita
   { ruta: 'paneles', titulo: 'Paneles solares', roles: [], superadmin: 'solo' },
 ] as const satisfies readonly { ruta: string; titulo: string; roles: readonly Rol[]; superadmin: 'si' | 'no' | 'solo' }[]
 

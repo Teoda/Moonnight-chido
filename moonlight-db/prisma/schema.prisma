@@ -191,6 +191,7 @@ model Usuario {
   pedidos          Pedido[]
   limpiezas        Limpieza[]
   turnos           Turno[]
+  horario          HorarioPersonal[]
   sesiones         Sesion[]
 
   @@map("usuarios")
@@ -227,6 +228,26 @@ model Turno {
   @@index([usuarioId])
   @@index([fin])
   @@map("turnos")
+}
+
+// Horario planeado del personal: en cada día abierto hay dos turnos (src/horario.ts) y en cada turno una persona
+// por área. Lo arma el súper administrador; los turnos de arriba (Turno) son las entradas y salidas reales.
+enum AreaTrabajo {
+  PLANTA_BAJA // recepción y bar
+  SALAS // pisos 2 y 3
+}
+
+model HorarioPersonal {
+  id        Int         @id @default(autoincrement())
+  diaSemana Int // 0 = domingo ... 6 = sábado
+  turno     Int // 1 = 12:00–19:00, 2 = 19:00–02:00
+  area      AreaTrabajo
+  usuarioId Int
+  usuario   Usuario     @relation(fields: [usuarioId], references: [id])
+
+  @@unique([diaSemana, turno, area])
+  @@index([usuarioId])
+  @@map("horario_personal")
 }
 
 // ───────────── PROMOCIONES ─────────────
