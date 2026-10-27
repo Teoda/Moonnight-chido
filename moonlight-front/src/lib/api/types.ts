@@ -92,6 +92,15 @@ export interface SalaStaff {
   /** La última observación que dejó limpieza (si hay). */
   limpiezas: { observaciones: string; terminadaEn: string; realizadaPor: { nombre: string } | null }[]
 }
+/** Horario planeado del personal: dos turnos por día abierto y una persona por área en cada turno. */
+export type AreaTrabajo = 'PLANTA_BAJA' | 'SALAS'
+export interface HorarioPersonal {
+  turnos: { n: 1 | 2; inicio: string; fin: string }[]
+  areas: AreaTrabajo[]; horasTurno: number
+  dias: number[] // 0 = domingo ... 6 = sábado, de lunes a domingo
+  asignaciones: { diaSemana: number; turno: 1 | 2; area: AreaTrabajo; usuario: { id: number; nombre: string } }[]
+  personal: { id: number; nombre: string }[]
+}
 /** Paneles solares del techo (por ahora simulados en la API). */
 export type EstadoPanel = 'ok' | 'revisar' | 'reparacion'
 export interface PanelesSolares {
