@@ -40,6 +40,7 @@
     </ul>
   </div>
 
+  <div class="contenido">
   <div class="techo" role="group" aria-label="Paneles del techo">
     {#each paneles as p (p.numero)}
       <button class="panel {p.estado}" type="button" aria-pressed={elegido === p.numero}
@@ -50,9 +51,10 @@
     {/each}
   </div>
 
+  <aside class="lateral">
   {#if sel}
     {@const reps = datos.reparaciones.filter((r) => r.panel === sel.numero)}
-    <div class="card detalle mt-4 {sel.estado}">
+    <div class="card detalle {sel.estado}">
       <div class="row between">
         <h3 class="m-0">Panel {sel.numero}</h3>
         <button class="x" type="button" aria-label="Cerrar detalle" onclick={() => (elegido = null)}>×</button>
@@ -65,8 +67,23 @@
       {#each reps as r (r.fecha)}<p class="small mt-2 mb-0">🔧 {r.tipo} · {r.detalle} · {r.estado} · {money(r.costo)}</p>{/each}
     </div>
   {:else}
-    <p class="small muted mt-3">Toca un panel para ver cuánto produce, su última revisión y notas.</p>
+    <div class="card atencion">
+      <h3 class="m-0">Requieren atención</h3>
+      <p class="small muted mt-1">Toca un panel para ver cuánto produce, su última revisión y notas.</p>
+      <ul>
+        {#each paneles.filter((p) => p.estado !== 'ok') as p (p.numero)}
+          <li class={p.estado}>
+            <button type="button" onclick={() => (elegido = p.numero)}>
+              <i aria-hidden="true"></i><span><b>Panel {p.numero}</b> · {ESTADOS[p.estado].nombre}</span>
+              {#if p.nota}<span class="nota small muted">{p.nota}</span>{/if}
+            </button>
+          </li>
+        {:else}<li class="small muted">Todos los paneles funcionan correctamente.</li>{/each}
+      </ul>
+    </div>
   {/if}
+  </aside>
+  </div>
 
   <div class="card table-wrap mt-4 reparaciones">
     <h3>Reparaciones y mantenimiento de esta semana</h3>
@@ -102,7 +119,7 @@
 
   /* el techo: 3 filas de 5 paneles sobre la lámina */
   .techo {
-    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(6px, 1.6vw, 14px); max-width: 720px;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(6px, 1.6vw, 14px); align-content: start;
     padding: clamp(10px, 2.5vw, 22px); border: 1px solid var(--line); border-radius: var(--radius);
     background: repeating-linear-gradient(90deg, #15121f 0 22px, #1b1728 22px 24px), #15121f;
   }
@@ -132,9 +149,25 @@
   .panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .panel[aria-pressed='true'] { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--text), 0 0 22px var(--luz); }
 
-  .detalle, .reparaciones { max-width: 720px; }
   .detalle { border-left: 4px solid var(--luz); }
-  .techo-cargando { height: 420px; max-width: 720px; border-radius: var(--radius); }
+  .techo-cargando { height: 420px; border-radius: var(--radius); }
+
+  /* computadora: techo a la izquierda y columna lateral fija con el detalle; en pantallas chicas, uno debajo del otro */
+  .contenido { display: grid; gap: 16px; }
+  @media (width >= 64rem) {
+    .contenido { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); align-items: start; }
+    .lateral { position: sticky; top: 16px; }
+    .panel { aspect-ratio: 5 / 7; }
+  }
+  .atencion ul { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+  .atencion button {
+    display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; width: 100%; padding: 8px 10px;
+    border: 1px solid var(--line); border-left: 3px solid var(--luz); border-radius: 10px; background: var(--bg-2); color: var(--text);
+    font: inherit; font-size: .9rem; text-align: left; cursor: pointer; transition: background .15s;
+  }
+  .atencion button:hover { background: var(--card-2); }
+  .atencion button i { width: 10px; height: 10px; border-radius: 3px; background: var(--luz); box-shadow: 0 0 8px var(--luz); }
+  .atencion .nota { grid-column: 2; }
   .prog-fill { background: var(--luz); }
   @keyframes aviso { 50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 0 4px color-mix(in oklab, var(--luz) 30%, transparent); } }
 </style>
