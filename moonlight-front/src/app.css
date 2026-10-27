@@ -102,6 +102,16 @@
   .empty { text-align: center; color: var(--muted); padding: 28px 12px; }
   .table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
   .table-wrap th { white-space: nowrap; }
+  /* use:tarjetas: en teléfono y tableta cada fila es una tarjeta con "título: valor" y no hay que deslizar a los lados */
+  @media (width < 52rem) {
+    table.tarjetas thead { display: none; }
+    table.tarjetas, table.tarjetas tbody, table.tarjetas tr { display: block; width: 100%; }
+    table.tarjetas tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    table.tarjetas td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; border: 0; text-align: right; overflow-wrap: anywhere; }
+    table.tarjetas td::before { content: attr(data-label); flex: none; max-width: 45%; color: var(--muted); font-size: .8rem; text-align: left; }
+    table.tarjetas td:not([data-label]), table.tarjetas td[data-label=''] { justify-content: flex-start; text-align: left; }
+    table.tarjetas td:not([data-label])::before, table.tarjetas td[data-label='']::before { content: none; }
+  }
 
   /* tarjetas */
   .card { background: linear-gradient(180deg, var(--card) 0%, var(--bg-2) 100%); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }

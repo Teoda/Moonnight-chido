@@ -70,14 +70,14 @@
 <header class="topbar">
   <div class="wrap flex min-h-16 items-center gap-4">
     <a class="brand min-w-0" href="/staff">
-      <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight <small class="muted small hidden sm:inline">· personal</small>
+      <img class="logo-img isotipo -my-1.5 -mr-0.5 -ml-2 h-[42px] w-[42px]" src="/img/isotipo.jpg" alt="" width="42" height="42" />Moonlight <small class="muted small hidden lg:inline">· personal</small>
     </a>
     <div class="flex-1"></div>
     <span class="reloj hidden sm:inline" aria-label="Hora actual">{fmtReloj($ahora)}</span>
     {#if $usuario}
-      <span class="badge accent">{ROLES[$usuario.rol] || $usuario.rol}</span>
+      <span class="badge accent hidden whitespace-nowrap min-[26rem]:inline-flex">{ROLES[$usuario.rol] || $usuario.rol}</span>
       <div class="hidden items-center gap-2 md:flex">
-        <span class="small">{$usuario.nombre}</span>
+        <span class="small whitespace-nowrap">{$usuario.nombre}</span>
         {#if esSuper($usuario.rol)}<button class="btn sm ghost" type="button" onclick={() => (personal = true)}>Personal</button>{/if}
         <button class="btn sm" type="button" onclick={() => dispatch(salirStaff(false))}>Salir</button>
       </div>
@@ -96,6 +96,7 @@
       {/if}
       <div class="wrap flex flex-wrap items-center gap-2 border-t border-line py-3">
         <span class="small">{$usuario.nombre}</span>
+        <span class="badge accent min-[26rem]:hidden">{ROLES[$usuario.rol] || $usuario.rol}</span>
         <span class="reloj small sm:hidden">{fmtReloj($ahora)}</span>
         <div class="flex-1"></div>
         {#if esSuper($usuario.rol)}<button class="btn sm ghost" type="button" onclick={() => { menu = false; personal = true }}>Personal</button>{/if}

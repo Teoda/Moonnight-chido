@@ -53,6 +53,27 @@ export const inclinar: Action<HTMLElement> = (el) => {
   return { destroy() { el.removeEventListener('pointermove', mover); el.removeEventListener('pointerleave', soltar) } }
 }
 
+/** Tabla que en teléfono se ve como tarjetas (estilos en app.css, table.tarjetas): copia el título de cada
+ *  columna a sus celdas (data-label) y lo repite cuando cambian las filas. Las celdas con colspan quedan sin etiqueta. */
+export const tarjetas: Action<HTMLTableElement> = (tabla) => {
+  tabla.classList.add('tarjetas')
+  const etiquetar = () => {
+    const titulos = [...tabla.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '')
+    for (const tr of tabla.querySelectorAll('tbody tr')) {
+      let col = 0
+      for (const td of Array.from(tr.children) as HTMLTableCellElement[]) {
+        if (td.colSpan > 1) delete td.dataset.label
+        else td.dataset.label = titulos[col] ?? ''
+        col += td.colSpan
+      }
+    }
+  }
+  etiquetar()
+  const mo = new MutationObserver(etiquetar)
+  mo.observe(tabla, { childList: true, subtree: true })
+  return { destroy() { mo.disconnect() } }
+}
+
 /** Onda al presionar cualquier .btn o .chip (un solo listener para toda la página). */
 export function instalarOndas() {
   if (calma || typeof document === 'undefined') return () => {}

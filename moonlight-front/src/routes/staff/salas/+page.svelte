@@ -150,7 +150,6 @@
       </div>
     </div>
   </div>
-  <p class="small muted mt-2 md:hidden">Desliza el plano hacia los lados para ver todas las salas.</p>
 
   {#if sel}
     {@const actual = enCurso(sel)}
@@ -210,7 +209,7 @@
   .plano { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #07060d; }
   .plano-cargando { height: 340px; border-radius: var(--radius); }
   /* escala real: --m son los px de un metro, calculados para que la fila más ancha llene el plano */
-  .lienzo { --muro: #2a2342; --piso: #120e1d; min-width: 860px; padding: 16px; container-type: inline-size; }
+  .lienzo { --muro: #2a2342; --piso: #120e1d; padding: 16px; container-type: inline-size; }
   .escala { --m: calc((100cqi - 40px) / var(--total)); display: grid; gap: 18px; }
   .piso { display: grid; justify-items: center; gap: 12px; }
   .piso + .piso { padding-top: 18px; border-top: 1px dashed var(--line); }
@@ -227,8 +226,6 @@
   }
   .ala-titulo span { color: var(--muted); font-weight: 500; text-shadow: none; }
   .ala-salas { display: flex; gap: 4px; border: 4px solid var(--muro); border-radius: 6px; background: var(--muro); }
-  /* en pantallas chicas el plano se desliza: todo pegado a la izquierda para que se vea desde el principio */
-  @media (width < 64rem) { .piso, .piso-salas, .ala { justify-items: start; } }
 
   /* cada cuarto: puerta hacia el pasillo, pantalla en el muro del fondo y sillón con mesa al centro */
   .cuarto {
@@ -280,4 +277,14 @@
   .puerta-arriba .aviso-obs { top: auto; bottom: 6px; }
   .obs { padding: 10px 12px; border: 1px solid rgba(255, 181, 71, .45); border-radius: 10px; background: rgba(255, 181, 71, .07); }
   @keyframes latir { 50% { opacity: .55; box-shadow: 0 0 4px var(--luz); } }
+  /* (al final para ganarle a las reglas de arriba) teléfono: sin deslizar a los lados; cada fila se vuelve una cuadrícula de 3 salas que llena el ancho
+     (se pierde la escala entre tipos, pero cada sala conserva su proporción) */
+  @media (width < 48rem) {
+    .lienzo { padding: 12px; }
+    .piso, .piso-salas, .ala { justify-items: stretch; }
+    .piso-salas { row-gap: 18px; }
+    .ala-salas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding: 3px; border: 0; background: none; }
+    .cuarto { width: auto; outline: 3px solid var(--muro); }
+    .cuarto::after { display: none; }
+  }
 </style>

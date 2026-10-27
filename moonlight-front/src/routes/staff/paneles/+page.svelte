@@ -4,6 +4,7 @@
   import { api } from '#lib/api/client.ts'
   import type { EstadoPanel, PanelesSolares } from '#lib/api/types.ts'
   import { fmtFecha, money } from '#lib/utils/formato.ts'
+  import { tarjetas } from '#lib/fx/efectos.ts'
 
   const ESTADOS: Record<EstadoPanel, { nombre: string; texto: string }> = {
     ok: { nombre: 'Funcionando', texto: 'Funciona correctamente.' },
@@ -71,7 +72,7 @@
     <h3>Reparaciones y mantenimiento de esta semana</h3>
     {#if !datos.reparaciones.length}<p class="muted small m-0">Sin reparaciones esta semana.</p>
     {:else}
-      <table>
+      <table use:tarjetas>
         <thead><tr><th>Panel</th><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Estado</th><th class="text-right">Costo</th></tr></thead>
         <tbody>
           {#each datos.reparaciones as r (r.fecha)}

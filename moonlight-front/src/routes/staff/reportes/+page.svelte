@@ -6,7 +6,7 @@
   import { dispatch } from '#lib/store/index.ts'
   import { avisar } from '#lib/store/ui.ts'
   import { money, fmtFechaHora } from '#lib/utils/formato.ts'
-  import { contar, revelar } from '#lib/fx/efectos.ts'
+  import { contar, revelar, tarjetas } from '#lib/fx/efectos.ts'
   import { confirmar } from '#lib/components/confirmar.svelte.ts'
 
   let lista = $state<ReporteSemanal[] | null>(null), error = $state(''), generando = $state(false)
@@ -83,7 +83,7 @@
 
   <div class="card table-wrap mt-4">
     <h3>Historial</h3>
-    <table>
+    <table use:tarjetas>
       <thead><tr><th>Semana</th><th>Ingresos</th><th>Vs anterior</th><th>Cobrado neto</th><th>Visitas</th><th>Cancelaciones</th><th>Por cobrar</th><th>Generado</th><th></th></tr></thead>
       <tbody>
         {#each lista as r (r.id)}
