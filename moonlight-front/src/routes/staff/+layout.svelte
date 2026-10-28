@@ -43,7 +43,8 @@
   // ── acceso: nombre del trabajador + llave de 8 números; atajo arriba para la súper administración ──
   let nombres = $state<{ id: number; nombre: string; super: boolean }[] | null>(null)
   let usuarioId = $state(''), llave = $state('')
-  let comoSuper = $state(false)
+  // ?acceso=super (enlaces de "Conócenos"): el login abre en Súper administración; al entrar se queda en la sección pedida
+  let comoSuper = $state(page.url.searchParams.get('acceso') === 'super')
   const visibles = $derived(nombres?.filter((n) => n.super === comoSuper) ?? [])
   function cambiarAcceso(s: boolean) { comoSuper = s; usuarioId = ''; llave = ''; error = '' }
   $effect(() => {

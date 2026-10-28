@@ -13,6 +13,7 @@ export const PESTANAS = [
   { ruta: 'reportes', titulo: 'Reportes', roles: [], superadmin: 'si' }, // solo Administración
   { ruta: 'horario', titulo: 'Horario', roles: ['OPERACIONES', 'FINANZAS', 'RECEPCION', 'BARRA', 'MARKETING', 'LIMPIEZA'], superadmin: 'si' }, // todos lo ven; solo él lo edita
   { ruta: 'paneles', titulo: 'Paneles solares', roles: [], superadmin: 'solo' },
+  { ruta: 'patitas', titulo: 'Patitas', roles: [], superadmin: 'solo' },
 ] as const satisfies readonly { ruta: string; titulo: string; roles: readonly Rol[]; superadmin: 'si' | 'no' | 'solo' }[]
 
 export const puede = (rol: Rol | undefined, ...roles: readonly Rol[]) => !!rol && (rol === 'SUPERADMIN' || rol === 'ADMIN' || roles.includes(rol))

@@ -13,6 +13,7 @@ import bcrypt from 'bcryptjs'
 import { crearPdf, datosReporte, etiquetaPeriodo, generarReporte, semanaQueTermina, ultimoCorte, variacion, type DatosReporte } from '../reportes'
 import { NOMINAL_W, panelesSimulados, reparacionesSimuladas } from '../paneles'
 import { AREAS, HORAS_TURNO, TURNOS, asignables, diasAbiertos, propuesta } from '../horario'
+import { historialPatitas, patitasSimuladas } from '../patitas'
 
 const r = Router()
 r.use(requireStaff, csrf)
@@ -488,6 +489,12 @@ r.post('/horario/propuesta', requireSuper, ah(async (_req, res) => {
 // Paneles solares del techo (simulado, ver src/paneles.ts) con las reparaciones de la semana en curso.
 r.get('/paneles', requireSuper, ah(async (_req, res) => {
   res.json({ simulado: true, nominal: NOMINAL_W, paneles: panelesSimulados(), reparaciones: reparacionesSimuladas(ultimoCorte(), new Date()) })
+}))
+
+// Moonlight por las patitas (simulado, ver src/patitas.ts): la semana en curso y las últimas 8 semanas.
+r.get('/patitas', requireSuper, ah(async (_req, res) => {
+  const corte = ultimoCorte()
+  res.json({ simulado: true, semana: patitasSimuladas(corte, new Date()), historial: historialPatitas(corte) })
 }))
 
 // Quién está en turno ahora y los turnos de los últimos días (por defecto 7, máximo 62).

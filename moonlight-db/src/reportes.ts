@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from './db'
 import { aFecha, partes, sumarDias } from './tiempo'
 import { reparacionesSimuladas, type Reparacion } from './paneles'
+import { patitasSimuladas, type SemanaPatitas } from './patitas'
 
 const CORTE = '06:00'
 const SEMANA_MS = 7 * 86400_000
@@ -55,6 +56,7 @@ export interface Semana {
   // opcionales: los reportes guardados antes no los tienen
   limpieza?: { observaciones: { sala: number; fecha: string; quien: string; texto: string }[] }
   paneles?: { simulado: true; reparaciones: Reparacion[]; costo: number }
+  patitas?: SemanaPatitas & { simulado: true }
 }
 /** Lo de la semana anterior que se usa para comparar. */
 export type Comparable = Pick<Semana, 'desde' | 'hasta' | 'ingresos' | 'visitas'> & { cobrado: number; cancelaciones: number }
@@ -184,6 +186,7 @@ export async function calcular(desde: Date, hasta: Date, ahora = new Date()): Pr
       observaciones: limpiezas.map((l) => ({ sala: l.sala.numero, fecha: l.terminadaEn!.toISOString(), quien: l.realizadaPor?.nombre ?? '-', texto: l.observaciones! })),
     },
     paneles: { simulado: true, reparaciones, costo: reparaciones.reduce((a, r) => a + r.costo, 0) },
+    patitas: { simulado: true, ...patitasSimuladas(desde, hasta) },
   }
 }
 
@@ -440,6 +443,21 @@ export function crearPdf(d: DatosReporte, op: { automatico: boolean; preliminar?
       [{ t: 'Panel', w: 8 }, { t: 'Fecha', w: 13 }, { t: 'Tipo', w: 19 }, { t: 'Detalle', w: 32 }, { t: 'Estado', w: 13 }, { t: 'Costo', w: 15, a: 'right' }],
       [...rp.map((x) => [String(x.panel), fecha(x.fecha), x.tipo, x.detalle, x.estado, dinero(x.costo)]), ['Total', '', '', '', '', dinero(s.paneles.costo)]],
       { resaltar: [rp.length] },
+    )
+  }
+
+  // 9. Moonlight por las patitas (simulado)
+  if (s.patitas) {
+    const pt = s.patitas
+    seccion('Moonlight por las patitas: reciclaje de vidrio (simulado)',
+      `Datos de ejemplo. ${pt.kilos} kg de vidrio reciclados, ${dinero(pt.obtenido)} obtenidos y ${dinero(pt.donado)} donados para perros en situación de calle.`)
+    if (!pt.entregas.length) parrafo('Sin entregas de vidrio esta semana.')
+    else tabla(
+      [{ t: 'Fecha', w: 20 }, { t: 'Movimiento', w: 50 }, { t: 'Kilos', w: 12, a: 'right' }, { t: 'Monto', w: 18, a: 'right' }],
+      [
+        ...pt.entregas.map((e) => [fecha(e.fecha), 'Entrega de vidrio al reciclador', String(e.kilos), dinero(e.obtenido)]),
+        ...pt.donaciones.map((d) => [fecha(d.fecha), `Donación a ${d.organizacion} (${d.destino})`, '', dinero(d.monto)]),
+      ],
     )
   }
 
