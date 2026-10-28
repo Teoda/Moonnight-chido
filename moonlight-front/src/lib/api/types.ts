@@ -101,6 +101,16 @@ export interface HorarioPersonal {
   asignaciones: { diaSemana: number; turno: 1 | 2; area: AreaTrabajo; usuario: { id: number; nombre: string } }[]
   personal: { id: number; nombre: string }[]
 }
+/** Moonlight por las patitas: reciclaje de vidrio y donaciones (por ahora simulado en la API). */
+export interface Patitas {
+  simulado: boolean
+  semana: {
+    entregas: { fecha: string; kilos: number; obtenido: number }[]
+    donaciones: { fecha: string; organizacion: string; monto: number; destino: string }[]
+    kilos: number; obtenido: number; donado: number
+  }
+  historial: { desde: string; kilos: number; donado: number }[]
+}
 /** Paneles solares del techo (por ahora simulados en la API). */
 export type EstadoPanel = 'ok' | 'revisar' | 'reparacion'
 export interface PanelesSolares {

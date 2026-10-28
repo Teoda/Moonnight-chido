@@ -33,7 +33,7 @@
 
   // "Reservar" no va aquí: es el botón destacado "Reservar sala" de la barra
   const enlaces = [
-    ['/', 'Inicio'], ['/salas', 'Salas'], ['/menu', 'Menú'],
+    ['/', 'Inicio'], ['/salas', 'Salas'], ['/menu', 'Menú'], ['/conocenos', 'Conócenos'],
   ] as const
 
   $effect(() => {
@@ -132,6 +132,7 @@
         <li><a href="/salas">Salas</a></li>
         <li><a href="/menu">Menú</a></li>
         <li><a href="/reservar">Reservar</a></li>
+        <li><a href="/conocenos">Conócenos</a></li>
       </ul>
     </nav>
 
