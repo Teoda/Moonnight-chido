@@ -23,6 +23,7 @@
           titulo: 'Misión, visión y valores', img: '/img/conocenos/interior.webp', alt: 'Interior del establecimiento Moonlight',
           texto: 'Brindar entretenimiento en espacios privados con música y tecnología, y ser referente del karaoke privado en la región por nuestra innovación, calidad y servicio.',
           puntos: ['Respeto, innovación y responsabilidad', 'Discreción y confidencialidad de nuestros clientes', 'Precios y promociones claros, sin publicidad engañosa'],
+          enlace: { href: '/#mision', txt: 'Ver misión y visión' },
         },
         {
           titulo: 'Imagen corporativa', img: '/img/conocenos/logotipo.webp', alt: 'Logotipo y colores corporativos de Moonlight',
@@ -47,7 +48,7 @@
           enlace: { href: '/menu', txt: 'Ver la carta' },
         },
         {
-          titulo: 'Zona comunitaria y eventos', img: '/img/conocenos/salas-doc.webp', alt: 'Salas de karaoke de Moonlight', pronto: true,
+          titulo: 'Zona comunitaria y eventos', img: '/img/conocenos/plano.jpg', alt: 'Plano de Moonlight por pisos: planta baja con área comunitaria, bar y cocina; 2.º piso con salas de karaoke; 3.er piso con salas premium y oficinas', pronto: true,
           texto: 'Un espacio para presentaciones, competencias y rankings de karaoke, con artistas y músicos de la región.',
           puntos: ['Eventos y presentaciones especiales', 'Competencias y rankings de karaoke', 'Contenido en redes: retos, canciones y salas temáticas'],
         },
