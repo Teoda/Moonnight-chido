@@ -10,7 +10,6 @@
   import TarjetaTipoSala from '#lib/components/sitio/salas/TarjetaTipoSala.svelte'
   import { money, num } from '#lib/utils/formato.ts'
   import { revelar } from '#lib/fx/efectos.ts'
-  import ChatEnVivo from '#lib/components/sitio/ChatEnVivo.svelte'
 
   const cat = seleccionar((s) => s.catalogo.datos)
 
@@ -95,9 +94,6 @@
     </div>
     <a class="extra-enlace" href="/menu">Ver la carta</a>
   </aside>
-
-  <!-- vista previa del asistente -->
-  <div class="chat"><ChatEnVivo /></div>
 </section>
 
 <!-- tamaños de sala: las mismas tarjetas que la página Salas -->
@@ -124,7 +120,7 @@
     <figure class="card m-0 overflow-hidden p-0" use:revelar>
       <img class="block h-full min-h-60 w-full object-cover" src="/img/lugar/fachada.jpg" alt="Fachada de Moonlight iluminada de noche con letreros de neón" width="1200" height="675" loading="lazy" />
     </figure>
-    <div class="stack">
+    <div class="stack scroll-mt-24" id="mision">
       <article class="card" use:revelar>
         <h3 class="text-[1.2rem] font-bold tracking-tight text-lila">Misión</h3>
         <p class="m-0 text-muted">Brindar entretenimiento en espacios privados con música y tecnología, ofreciendo experiencias únicas para cantar, convivir y disfrutar.</p>
@@ -265,7 +261,6 @@
   .extra-enlace { color: var(--color-lila); font-weight: 600; text-decoration: none; white-space: nowrap; border-bottom: 1px solid rgba(180, 92, 255, .5); }
   .extra-enlace:hover { color: #fff; border-bottom-color: #fff; }
   .extra-enlace:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 2px; }
-  .chat { width: 100%; max-width: 380px; margin-top: clamp(40px, 6vw, 64px); }
 
   /* tableta: pasos en una columna con el número a un lado */
   @media (width < 64rem) {
